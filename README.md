@@ -3,6 +3,13 @@
 Assistente de service desk em Python que ajuda a analista a priorizar chamados e responder com clareza e empatia.  
 **A IA só sugere, explica e registra. Quem decide e envia é sempre a analista.**
 
+## Em poucas linhas
+
+- **Governança antes de IA:** CPF, CNPJ, e-mail, telefone e nomes próprios são mascarados antes de qualquer agente ver o texto ou de haver envio externo (`src/mascara.py`).
+- **Humano no controle:** urgência sem pré-seleção, `[colchetes]` obrigatórios no rascunho e decisão 100% humana na tela (`src/ui_marina.py`, `app.py`).
+- **Resiliência observável:** regras offline e Gemini atrás da mesma interface, fallback silencioso e origem da resposta mostrada por chamado (`src/llm.py`, `app.py`).
+- **Engenharia verificada:** 196 testes, incluindo `AppTest` para a navegação e para as telas Marina/Rafael (`tests/`), `ruff` e `compileall` limpos, CI verde em 12 execuções consecutivas (GitHub Actions, 2026-11-23).
+
 ## O problema
 A analista abre dezenas de chamados sem saber qual é mais urgente e escreve respostas sob pressão, com risco de prometer prazos que não pode cumprir.
 
@@ -87,7 +94,7 @@ Histórico: na amostra de 16 chamados, Regras 3/16 (19%) e 10/16 (62%) contra Ge
 - `app.py` importa `I18N`, `get_text`, `render_dxc_theme`, `render_dxc_logo` e `render_language_selector`; não mantém cópia local de CSS, SVG ou traduções. `get_text` fica disponível para rótulos pontuais sem duplicar o dicionário.
 - O seletor PT/EN fica no topo da área principal; o tema Claro/Escuro fica na barra lateral (`tema_ui`). As chaves de widgets usadas pela agent API (`urg_ui_C15`, callbacks e filtros) não mudaram.
 - O módulo de tema não lê segredos: a configuração continua restrita a `GEMINI_API_KEY` e `GEMINI_MODEL` em `.env` (`src/config.py`). Use `.env.example` como referência; valores iguais a `sua_chave_aqui` são ignorados (`src/config.py:9,22`).
-- `tests/test_tema_dxc.py` cobre a paridade recursiva das 81 chaves (incluindo os 5 blocos aninhados), o fallback de tradução, o CSS dos dois modos, o SVG e a troca de idioma. Suíte total: **188 testes**.
+- `tests/test_tema_dxc.py` cobre a paridade recursiva das 81 chaves (incluindo os 5 blocos aninhados), o fallback de tradução, o CSS dos dois modos, o SVG e a troca de idioma. Suíte total: **196 testes**.
 
 ## Próximos passos
 1. Rodar nova medição no conjunto independente com a instrumentação de motivos já implementada, para classificar os 8 fallbacks da medição auditada antes de atribuir causa à queda de 86% para 72% em intenção.
