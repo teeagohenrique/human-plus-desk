@@ -1,4 +1,5 @@
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -545,3 +546,61 @@ def test_avaliar_nao_suja_contador_global(monkeypatch):
 
     assert res["origem"]["regras"] == res["n"]
     assert not any(llm.CONTADOR_TRIAGEM.values())
+
+
+def _genai_falso(monkeypatch, fabrica_cliente):
+    """Instala um google.genai mínimo para exercitar o adaptador sem SDK real."""
+    genai = SimpleNamespace(Client=fabrica_cliente)
+    types_mod = ModuleType("google.genai.types")
+    genai_mod = ModuleType("google.genai")
+    genai_mod.types = types_mod
+    google_mod = ModuleType("google")
+    google_mod.genai = genai
+    monkeypatch.setitem(sys.modules, "google", google_mod)
+    monkeypatch.setitem(sys.modules, "google.genai", genai_mod)
+    monkeypatch.setitem(sys.modules, "google.genai.types", types_mod)
+
+
+def test_cliente_gemini_e_criado_uma_unica_vez_por_chave(monkeypatch):
+    from src import llm
+
+    criados = []
+
+    def fabricar(api_key=None):
+        criados.append(api_key)
+        return SimpleNamespace(api_key=api_key)
+
+    _genai_falso(monkeypatch, fabricar)
+    monkeypatch.setattr(llm, "_CLIENTES_GEMINI", {})
+    monkeypatch.setenv("GEMINI_API_KEY", "chave_cache_a")
+
+    primeiro = llm._cliente_gemini()
+    segundo = llm._cliente_gemini()
+
+    assert primeiro is segundo
+    assert criados == ["chave_cache_a"]
+
+    monkeypatch.setenv("GEMINI_API_KEY", "chave_cache_b")
+    terceiro = llm._cliente_gemini()
+
+    assert terceiro is not primeiro
+    assert criados == ["chave_cache_a", "chave_cache_b"]
+
+
+def test_cliente_gemini_indisponivel_continua_registrando_fallback(monkeypatch):
+    from src import llm
+
+    def falhar(api_key=None):
+        raise RuntimeError("cliente indisponível")
+
+    _genai_falso(monkeypatch, falhar)
+    monkeypatch.setattr(llm, "_CLIENTES_GEMINI", {})
+    monkeypatch.setenv("GEMINI_API_KEY", "chave_sem_cliente")
+    monkeypatch.setenv("GEMINI_MODEL", "modelo_teste")
+
+    with llm.usar_contadores() as contadores:
+        triagem, origem = llm.triagem_com_origem(CHAMADO, provider="gemini")
+
+    assert origem == "fallback"
+    assert isinstance(triagem, Triagem)
+    assert contadores.fallback["cliente_indisponivel"] == 1

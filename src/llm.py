@@ -10,6 +10,7 @@ Princípios:
   trecho exatamente (normalizando apenas espaços) contra o texto MASCARADO.
 - O adaptador Gemini espaça chamadas e aplica backoff limitado: 3 tentativas
   para 429 (respeitando o `retryDelay`) e 5 para 503 (picos de demanda).
+- O cliente é inicializado uma única vez por chave e reutilizado nas chamadas.
 - `CONTADOR_TRIAGEM` registra a origem de cada triagem: `gemini`, `regras` ou
   `fallback` (Gemini pedido, mas respondido pelas regras).
 - `CONTADOR_FALLBACK` separa o MOTIVO de cada fallback efetivo (SDK ausente,
@@ -53,6 +54,11 @@ ESPERA_503_BASE = 10.0
 ESPERA_503_TETO = 60.0
 STATUS_TRANSIENTES = (429, 503)
 _ULTIMA_CHAMADA_GEMINI: float | None = None
+
+# A inicialização do cliente é custosa e a chave é a mesma em todo o processo:
+# uma instância por chave, criada sob demanda e nunca fixada no código.
+_CLIENTES_GEMINI: dict[str, Any] = {}
+_TRAVA_CLIENTE = threading.Lock()
 
 CONTADOR_TRIAGEM = {"gemini": 0, "regras": 0, "fallback": 0}
 
@@ -269,6 +275,19 @@ def resolver_provider(provider: str | None = None) -> str:
     return escolhido
 
 
+def _cliente_gemini() -> Any:
+    """Reutiliza o cliente Gemini da chave atual; cria um só por chave."""
+    from google import genai
+
+    chave = os.getenv("GEMINI_API_KEY") or ""
+    with _TRAVA_CLIENTE:
+        cliente = _CLIENTES_GEMINI.get(chave)
+        if cliente is None:
+            cliente = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+            _CLIENTES_GEMINI[chave] = cliente
+    return cliente
+
+
 def _modelo_gemini(model: str | None = None) -> str:
     escolhido = (model or os.getenv("GEMINI_MODEL") or "").strip()
     if not escolhido:
@@ -281,7 +300,6 @@ def _modelo_gemini(model: str | None = None) -> str:
 
 def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativas: int = 2) -> tuple[Triagem, str]:
     try:
-        from google import genai
         from google.genai import types
     except ImportError:
         _registrar_fallback("sdk_indisponivel")
@@ -289,7 +307,7 @@ def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativ
 
     modelo = _modelo_gemini(model)
     try:
-        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        client = _cliente_gemini()
     except Exception:
         _registrar_fallback("cliente_indisponivel")
         return triar(texto_mascarado), "fallback"
@@ -349,7 +367,6 @@ def _rascunho_gemini(
     max_tentativas: int = 2,
 ) -> tuple[Rascunho, str]:
     try:
-        from google import genai
         from google.genai import types
     except ImportError:
         _registrar_fallback("sdk_indisponivel")
@@ -357,7 +374,7 @@ def _rascunho_gemini(
 
     modelo = _modelo_gemini(model)
     try:
-        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        client = _cliente_gemini()
     except Exception:
         _registrar_fallback("cliente_indisponivel")
         return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura), "fallback"
