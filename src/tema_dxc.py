@@ -40,9 +40,14 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         bg_widget = "#1A1E2B"
         bg_header = "rgba(14, 16, 23, 0.88)"
         bg_alert = "#151822"
-        bg_active = "rgba(124, 58, 237, 0.32)"
+        bg_active = "rgba(124, 58, 237, 0.38)"
+        bd_active = "#A78BFA"
+        ring_active = "rgba(167, 139, 250, 0.28)"
         fg_active = "#FFFFFF"
         radio_off_bg = "#1A1E2B"
+        radio_off_bd = "#475569"
+        icon_muted = "#CBD5E1"
+        hover_pill_bg = "#252B3D"
         step_cta_bg = "linear-gradient(90deg, #4F2D7F 0%, #B82968 50%, #FF6B00 100%)"
         bg_cascata_1 = "#212638"
         bg_cascata_2 = "#151822"
@@ -69,9 +74,14 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         bg_widget = "#FFFFFF"
         bg_header = "rgba(248, 250, 252, 0.92)"
         bg_alert = "#F1F5F9"
-        bg_active = "rgba(91, 44, 152, 0.16)"
-        fg_active = "#3B1C6E"
+        bg_active = "#EDE9FE"
+        bd_active = "#7C3AED"
+        ring_active = "rgba(124, 58, 237, 0.20)"
+        fg_active = "#4C1D95"
         radio_off_bg = "#FFFFFF"
+        radio_off_bd = "#94A3B8"
+        icon_muted = "#64748B"
+        hover_pill_bg = "#F1F5F9"
         step_cta_bg = "#4F2D7F"
         bg_cascata_1 = "#F8F6FC"
         bg_cascata_2 = "#F8FAFC"
@@ -135,15 +145,25 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         button[kind="secondary"]:disabled * {{
             color: {btn_dis_fg} !important;
         }}
+        div[data-testid="stButtonGroup"] button:not([data-selected]):not([aria-checked="true"]):not([aria-pressed="true"]):hover,
+        div[data-testid="stButtonGroup"] button:not([data-selected]):not([aria-checked="true"]):not([aria-pressed="true"])[data-hovered] {{
+            background-color: {hover_pill_bg} !important;
+            border-color: {bd_active} !important;
+        }}
+        div[data-testid="stButtonGroup"] button[data-selected],
+        div[data-testid="stButtonGroup"] button[aria-checked="true"],
         div[data-testid="stButtonGroup"] button[aria-pressed="true"],
         div[data-testid="stButtonGroup"] button[data-testid*="Active"],
         button[kind="segmented_controlActive"],
         button[kind="pillsActive"] {{
             background-color: {bg_active} !important;
             color: {fg_active} !important;
-            border: 2px solid #7C3AED !important;
+            border: 2px solid {bd_active} !important;
+            box-shadow: 0 0 0 2px {ring_active} !important;
             font-weight: 600 !important;
         }}
+        div[data-testid="stButtonGroup"] button[data-selected] *,
+        div[data-testid="stButtonGroup"] button[aria-checked="true"] *,
         div[data-testid="stButtonGroup"] button[aria-pressed="true"] *,
         div[data-testid="stButtonGroup"] button[data-testid*="Active"] *,
         button[kind="segmented_controlActive"] *,
@@ -154,6 +174,56 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         div[data-testid="stPopover"] button {{
             min-width: 82px !important;
             white-space: nowrap !important;
+        }}
+        div[data-testid="stSelectbox"] div:has(> input),
+        div[data-testid="stSelectbox"] div:has(> button[aria-label="Open"]) {{
+            background-color: {bg_widget} !important;
+            color: {txt_main} !important;
+            border-color: {border_card} !important;
+        }}
+        div[data-testid="stSelectbox"] input {{
+            background-color: transparent !important;
+            color: {txt_main} !important;
+        }}
+        div[data-testid="stSelectbox"] button[aria-label="Open"],
+        div[data-testid="stSelectbox"] button[aria-label="Clear value"] {{
+            background-color: transparent !important;
+            color: {icon_muted} !important;
+        }}
+        div[data-testid="stSelectbox"] button[aria-label="Open"]:hover,
+        div[data-testid="stSelectbox"] button[aria-label="Clear value"]:hover {{
+            color: #7C3AED !important;
+        }}
+        div[data-testid="stSelectbox"] button[aria-label="Open"] svg,
+        div[data-testid="stSelectbox"] button[aria-label="Clear value"] svg,
+        div[data-testid="stSelectbox"] [data-testid="stSelectboxIcon"] svg {{
+            fill: currentColor !important;
+            color: inherit !important;
+        }}
+        [data-testid="stTooltipIcon"] svg,
+        [data-testid="stTooltipHoverTarget"] svg {{
+            fill: none !important;
+            stroke: {icon_muted} !important;
+            color: {icon_muted} !important;
+        }}
+        [data-testid="stTooltipIcon"]:hover svg,
+        [data-testid="stTooltipHoverTarget"]:hover svg {{
+            stroke: #7C3AED !important;
+            color: #7C3AED !important;
+        }}
+        div[data-testid="stSelectboxVirtualDropdown"],
+        div[data-testid="stSelectboxVirtualDropdown"] ul,
+        div[data-testid="stSelectboxVirtualDropdown"] li,
+        div[data-testid="stSelectboxVirtualDropdown"] [role="listbox"],
+        div[data-testid="stSelectboxVirtualDropdown"] [role="option"] {{
+            background-color: {bg_card} !important;
+            color: {txt_main} !important;
+            border-color: {border_card} !important;
+        }}
+        div[data-testid="stSelectboxVirtualDropdown"] [data-hovered] [data-item-hl],
+        div[data-testid="stSelectboxVirtualDropdown"] [data-focused] [data-item-hl] {{
+            background-color: {bg_active} !important;
+            color: {fg_active} !important;
         }}
         div[data-baseweb="select"] > div,
         div[data-baseweb="base-input"],
@@ -173,7 +243,7 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
             border-color: {border_card} !important;
         }}
         div[data-baseweb="select"] svg {{
-            fill: {txt_main} !important;
+            fill: {icon_muted} !important;
         }}
         /* Alertas (st.info / st.warning / st.success) legíveis no Claro e Escuro */
         div[data-testid="stAlert"],
@@ -197,10 +267,22 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         div[role="alert"] * {{
             color: {txt_main} !important;
         }}
-        /* Bolinhas de radio não selecionadas no modo Claro */
-        div[role="radiogroup"] label > div:first-child {{
+        /* Bolinhas de radio harmonizadas nos modos Claro e Escuro */
+        label[data-testid="stRadioOption"]:not([data-selected]) > div > div:first-child,
+        div[role="radiogroup"] label:not([data-selected]) > div:first-child {{
             background-color: {radio_off_bg} !important;
-            border-color: {border_card} !important;
+            border: 1.5px solid {radio_off_bd} !important;
+        }}
+        label[data-testid="stRadioOption"]:not([data-selected]):hover > div > div:first-child {{
+            background-color: {hover_pill_bg} !important;
+            border-color: {bd_active} !important;
+        }}
+        label[data-testid="stRadioOption"][data-selected] > div > div:first-child {{
+            background-color: #7C3AED !important;
+            border: 1.5px solid #7C3AED !important;
+        }}
+        label[data-testid="stRadioOption"][data-selected] > div > div:first-child > div {{
+            background-color: #FFFFFF !important;
         }}
         /* Alinhamento simétrico da fila + micro-feedback (deslocamento + seta) no item ativo */
         .st-key-fila_bento_card {{
@@ -213,16 +295,18 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
             transition: padding-left 0.15s ease, background-color 0.15s ease;
             width: 100%;
         }}
-        .st-key-fila_bento_card div[role="radiogroup"] label:has(input:checked) {{
+        .st-key-fila_bento_card div[role="radiogroup"] label:has(input:checked),
+        .st-key-fila_bento_card div[role="radiogroup"] label[data-selected] {{
             background-color: {bg_active} !important;
             border-left: 3px solid #7C3AED !important;
             padding-left: 15px !important;
             font-weight: 600 !important;
         }}
-        .st-key-fila_bento_card div[role="radiogroup"] label:has(input:checked)::after {{
+        .st-key-fila_bento_card div[role="radiogroup"] label:has(input:checked)::after,
+        .st-key-fila_bento_card div[role="radiogroup"] label[data-selected]::after {{
             content: "→";
             margin-left: auto;
-            color: #7C3AED;
+            color: {bd_active};
             font-weight: 700;
         }}
         div[data-baseweb="popover"],
@@ -232,9 +316,48 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
             background-color: {bg_card} !important;
             color: {txt_main} !important;
         }}
-        div[data-testid="stExpander"] {{
+        div[data-testid="stExpander"],
+        div[data-testid="stExpander"] details,
+        div[data-testid="stExpander"] summary,
+        div[data-testid="stExpander"] summary:focus,
+        div[data-testid="stExpander"] div[data-testid="stExpanderDetails"] {{
             background-color: {bg_card} !important;
+            color: {txt_main} !important;
             border-color: {border_card} !important;
+        }}
+        div[data-testid="stExpander"] summary * {{
+            color: {txt_main} !important;
+        }}
+        div[data-testid="stExpander"] summary:hover {{
+            background-color: {bg_alert} !important;
+            color: {txt_main} !important;
+        }}
+        div[data-testid="stExpander"] summary svg {{
+            color: {icon_muted} !important;
+            fill: currentColor !important;
+        }}
+        div[data-testid="stTable"] > div {{
+            border-color: {border_card} !important;
+            background-color: {bg_card} !important;
+        }}
+        div[data-testid="stTable"] table {{
+            background-color: {bg_card} !important;
+            color: {txt_main} !important;
+        }}
+        div[data-testid="stTable"] thead th {{
+            background-color: {bg_alert} !important;
+            color: {txt_muted} !important;
+            border-color: {border_card} !important;
+            font-weight: 600 !important;
+        }}
+        div[data-testid="stTable"] tbody th,
+        div[data-testid="stTable"] tbody td {{
+            background-color: {bg_card} !important;
+            color: {txt_main} !important;
+            border-color: {border_card} !important;
+        }}
+        div[data-testid="stTable"] tbody th {{
+            font-weight: 600 !important;
         }}
         div[data-testid="stVerticalBlockBorderWrapper"] {{
             background: {bg_card};

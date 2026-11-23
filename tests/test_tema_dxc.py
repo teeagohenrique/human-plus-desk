@@ -85,6 +85,47 @@ def test_render_dxc_theme_claro_e_escuro():
         assert mock_markdown.call_args[1]["unsafe_allow_html"] is True
 
 
+def test_render_dxc_theme_destaque_pills_e_controles_claro():
+    """Garante seletores ativos de pills/radio/selectbox e contraste no Modo Claro."""
+    with patch.object(tema_dxc.st, "markdown") as mock_markdown:
+        tema_dxc.render_dxc_theme(dark_mode=False)
+        css_claro = mock_markdown.call_args[0][0]
+        for trecho in (
+            "button[data-selected]",
+            'button[aria-checked="true"]',
+            'label[data-testid="stRadioOption"]:not([data-selected])',
+            "#FFFFFF",
+            "#94A3B8",
+            'div[data-testid="stSelectbox"]',
+            'button[aria-label="Open"]',
+            "stSelectboxVirtualDropdown",
+            "#64748B",
+            'div[data-testid="stExpander"] summary',
+            '[data-testid="stTooltipIcon"] svg',
+            '[data-testid="stTooltipHoverTarget"] svg',
+            "fill: none !important;",
+            "stroke:",
+            'div[data-testid="stTable"]',
+        ):
+            assert trecho in css_claro, f"Esperado no CSS claro: {trecho}"
+
+        tema_dxc.render_dxc_theme(dark_mode=True)
+        css_escuro = mock_markdown.call_args[0][0]
+        for trecho in (
+            "button[data-selected]",
+            'button[aria-checked="true"]',
+            "#A78BFA",
+            'div[data-testid="stSelectbox"]',
+            "stSelectboxVirtualDropdown",
+            '[data-testid="stTooltipIcon"] svg',
+            '[data-testid="stTooltipHoverTarget"] svg',
+            "fill: none !important;",
+            "stroke:",
+            'div[data-testid="stTable"]',
+        ):
+            assert trecho in css_escuro, f"Esperado no CSS escuro: {trecho}"
+
+
 def test_render_dxc_logo():
     """Garante o logotipo Human Desk e o SVG com o gradiente DXC."""
     with patch.object(tema_dxc.st, "markdown") as mock_markdown:

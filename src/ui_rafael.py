@@ -281,14 +281,14 @@ def _aba_urgencia(eventos: list, txt: dict, escuro: bool) -> None:
                 }
                 for r in linhas
             ])
-            st.dataframe(tabela, hide_index=True, width="stretch")
+            st.table(tabela, hide_index=True, width="stretch")
     with dir_, st.container(border=True):
         st.markdown(f"#### {txt['urg_cal_matrix_title']}")
         matriz = pd.DataFrame(ct["matriz"]).T
         matriz.index = [niveis[i] for i in matriz.index]
         matriz.columns = [niveis[c] for c in matriz.columns]
         matriz.index.name = txt["urg_cal_matrix_index"]
-        st.dataframe(matriz, width="stretch")
+        st.table(matriz, width="stretch")
         st.caption(txt["urg_cal_caption"])
 
 
