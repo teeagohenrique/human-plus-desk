@@ -16,8 +16,9 @@ A analista abre dezenas de chamados sem saber qual é mais urgente e escreve res
 - **Guardrail (`validar_rascunho`):** bloqueia promessa de prazo, rótulo sobre a pessoa, números que não constam no chamado e dado pessoal sem máscara.
 - **Painel Streamlit (`app.py`):**
   - *Painel da Marina:* fila ordenada por urgência, seleção explícita de urgência (sem pré-seleção, para evitar viés de concordância automática), adaptação ao vivo do rascunho ao trocar a leitura e trava de `[colchetes]`.
-  - *Painel do Rafael:* métricas, histórico por dia, calibração passiva das leituras e matriz de concordância da triagem.
+  - *Painel do Rafael:* métricas, histórico por dia, calibração passiva das leituras, matriz de concordância da triagem e reabertura auditada de chamados.
 - **Auditoria (`src/auditoria.py`):** log *append-only* em JSON Lines (`data/painel_log.jsonl` e `data/auditoria.jsonl`).
+- **Persistência (`src/repositorio.py`):** `human_desk.db` é criado na raiz do projeto no primeiro `streamlit run app.py` e populado com os 16 chamados da fila e os 36 do benchmark, já mascarados. Mudar urgência, aprovar/rejeitar e reabrir gravam na hora na tabela `eventos`, com agente (`Marina`/`Rafael`) e timestamp ISO em UTC; reabrir não apaga a resolução anterior. Status, contadores e respostas registradas sobrevivem a F5 e ao reinício do Streamlit.
 
 ## Ética e escopo
 - O sistema lê **sinais no texto**, nunca diagnostica nem rotula pessoas.
@@ -49,22 +50,24 @@ Para usar o Gemini, preencha `GEMINI_API_KEY` e `GEMINI_MODEL` no `.env` da raiz
 ## Benchmark no conjunto independente (36 chamados)
 `data/chamados_validacao_independente.json` foi escrito com formulações naturais, sem ajustar regras nem prompt em cima dele. V01–V16 foram preservados da amostra original; V17–V36 foram acrescentados. Ambos os provedores rodaram no **mesmo arquivo**.
 
+**Medição auditada (com contador de origem):**
+
 | Métrica | Regras | Gemini | Diferença |
 |---|---|---|---|
-| Intenção | 8/36 (22%) | **31/36 (86%)** | +23 acertos |
+| Intenção | 8/36 (22%) | **26/36 (72%)** | +18 acertos |
 | Urgência | 20/36 (56%) | **29/36 (81%)** | +9 acertos |
 
-`[Fonte: saídas de --provider regras e --provider gemini no mesmo arquivo, 23 de novembro de 2026]`
+`[Fonte: saída de --provider gemini: "Origem: gemini=28 | regras=0 | fallback=8" e "Arquivo: chamados_validacao_independente.json | Provider: gemini | Intenção: 26/36 (72%) | Urgência: 29/36 (81%)", 23 de novembro de 2026]`
 
-Na medição anterior de 16 chamados, o placar foi Regras 3/16 (19%) e 10/16 (62%) contra Gemini 13/16 (81%) e 12/16 (75%). A amostra maior confirmou o ganho.
+Dos 36 chamados, 28 foram respondidos pelo Gemini e 8 caíram em fallback por regras. A urgência se manteve em 29/36. A medição anterior, feita antes do contador e antes do endurecimento de `validar_trechos` com fronteira de palavra (`src/llm.py:122-129`), registrou 31/36 (86%) em intenção e 29/36 (81%) em urgência. A queda de 86% para 72% em intenção coincide com esse endurecimento e com a entrada do fallback por exceção de API. A causa dos 8 fallbacks **não foi instrumentada separadamente** — o contador não distingue trecho inválido de erro de API —, então não é possível atribuí-la sem nova medição.
 
-Esta rodada de 36 chamados foi executada **antes** do contador de origem existir. Por isso o placar acima não traz a separação gemini/regras/fallback. A tentativa de repetir a medição com o contador foi interrompida por `503 UNAVAILABLE` do provedor mesmo após as cinco tentativas de backoff; nenhum placar parcial foi produzido. A separação por origem segue pendente de uma nova janela estável do modelo.
+Histórico: na amostra de 16 chamados, Regras 3/16 (19%) e 10/16 (62%) contra Gemini 13/16 (81%) e 12/16 (75%). A primeira tentativa de auditoria foi interrompida por `503 UNAVAILABLE` após as cinco tentativas de backoff, sem placar parcial; a segunda completou com o resultado acima.
 
 **O que a medição cobre:** apenas a triagem (intenção e urgência), que é o que `--avaliar` compara entre os adaptadores. O redator com LLM existe em `rascunho_com_llm` e é usado pelo comando de demonstração, mas não entra neste placar.
 
 ## Limites honestos desta versão
 - 36 chamados ainda é amostra pequena: o resultado é sinal forte, não número definitivo.
-- O placar de 86% / 81% registrado acima ainda não traz a separação por origem, pois foi medido antes do contador; a rodada de auditoria falhou por 503 do provedor.
+- O placar de 86% / 81% ficou apenas como histórico: foi medido antes do contador e antes do endurecimento de `validar_trechos`. O placar auditado é 72% / 81%, com separação por origem.
 - A baseline das regras foi revalidada após o endurecimento de `validar_trechos` e da regex de prazo em `src/triagem.py`: segue em `8/36 (22%) | 20/36 (56%)`.
 - A origem exibida no painel vem do valor por item devolvido por `triagem_com_origem`/`rascunho_com_origem`. O contador agregado `CONTADOR_TRIAGEM` serve apenas ao `--avaliar` da CLI e não mistura sessões do Streamlit.
 - Transcrição de áudio (`openai-whisper`) e orquestração (`crewai`) seguem fora do MVP, como planejado.
@@ -72,7 +75,7 @@ Esta rodada de 36 chamados foi executada **antes** do contador de origem existir
 
 ## Painel Streamlit com LLM (implementado)
 - Seletor explícito na barra lateral: `regras` (padrão) ou `gemini`. O modelo continua vindo do `.env`, sem valor fixo no código.
-- Cada item mostra a procedência da triagem e do rascunho: `sugestão gerada por Gemini`, `sugestão por regras` ou `fallback por regras`.
+- Cada item mostra a procedência da triagem e do rascunho: `Gemini (API)`, `Regras (offline)` ou `Fallback por regras`.
 - A fila é cacheada por provedor/modelo e cada rascunho adaptado é cacheado por item/leitura/provider, para não repetir chamadas a cada rerun do Streamlit.
 - Na leitura inicial, o rascunho gerado ao montar a fila é reaproveitado em vez de ser refeito na tela: abrir o painel com Gemini custa 32 chamadas (16 triagens + 16 rascunhos), não 48.
 - O retry do Redator Gemini exige os dois marcadores (`[PRAZO...]` e `[SOLUÇÃO PROVISÓRIA...]`); sem eles, cai em fallback por regras.
@@ -80,6 +83,6 @@ Esta rodada de 36 chamados foi executada **antes** do contador de origem existir
 - A decisão continua 100% humana: urgência sem pré-seleção e origem registrada na auditoria.
 
 ## Próximos passos
-1. Repetir a medição de 36 chamados com o contador de origem ligado, quando o modelo estiver estável, para auditar o placar.
+1. Investigar os 8 fallbacks da medição auditada com instrumentação separada (trecho inválido vs. erro de API) antes de atribuir causa à queda de 86% para 72% em intenção.
 2. Revalidar em amostra maior (50–100 chamados) antes de apresentar os números como definitivos à DXC.
 3. Se fizer ajuste de prompt para `indefinida`, medir em chamados novos — nunca reutilizar os 36 como critério de sucesso.
