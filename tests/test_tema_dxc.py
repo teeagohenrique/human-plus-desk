@@ -2,12 +2,23 @@
 from unittest.mock import MagicMock, patch
 
 from src import tema_dxc
+from src.percepcao import LEITURAS
 
-ANINHADOS = ("niveis", "decisoes", "intencoes", "sinais", "origens")
+ANINHADOS = (
+    "niveis",
+    "decisoes",
+    "intencoes",
+    "sinais",
+    "origens",
+    "leituras",
+    "hipoteses",
+    "perguntas_hipotese",
+    "acoes",
+)
 
 
 def _verificar_valores(bloco: dict, origem: str) -> None:
-    """Valida recursivamente os 5 blocos aninhados e as strings simples."""
+    """Valida recursivamente os blocos aninhados e as strings simples."""
     for chave, valor in bloco.items():
         caminho = f"{origem}.{chave}"
         if chave in ANINHADOS:
@@ -104,3 +115,123 @@ def test_render_language_selector_alterna_idioma():
         assert fake_state["lang"] == "EN"
         assert idioma == "EN"
         mock_rerun.assert_called_once()
+
+
+def _ctx_falso():
+    ctx = MagicMock()
+    ctx.__enter__.return_value = None
+    ctx.__exit__.return_value = None
+    return ctx
+
+
+def test_render_card_cascata_vazio_e_item_unico():
+    """Lista vazia mostra Total: 0; item único mostra 1 de 1 sem botões de cascata."""
+    fake_state = {"lang": "PT"}
+    with (
+        patch.object(tema_dxc.st, "session_state", fake_state),
+        patch.object(tema_dxc.st, "container", return_value=_ctx_falso()),
+        patch.object(tema_dxc.st, "markdown") as mock_md,
+        patch.object(tema_dxc.st, "caption") as mock_cap,
+        patch.object(tema_dxc.st, "button") as mock_btn,
+    ):
+        tema_dxc.render_card_cascata("Histórico", [], "teste_vazio", vazio="Nada ainda.")
+        assert "Total: 0" in mock_md.call_args[0][0]
+        mock_cap.assert_called_with("Nada ainda.")
+        mock_btn.assert_not_called()
+
+        mock_md.reset_mock()
+        mock_btn.reset_mock()
+        tema_dxc.render_card_cascata(
+            "Supervisão",
+            [{"titulo": "Principal", "detalhe": "Detalhe", "badge": "Alta"}],
+            "teste_unico",
+        )
+        html_saida = " ".join(c[0][0] for c in mock_md.call_args_list)
+        assert "1 de 1" in html_saida
+        assert "cascata-primary" in html_saida
+        assert "Principal" in html_saida
+        mock_btn.assert_not_called()
+
+
+def test_render_card_cascata_revelacao_progressiva_e_recolhimento():
+    """Avança nível a nível (1 -> 2 -> 3) e recolhe de volta para o destaque."""
+    fake_state = {"lang": "PT"}
+    itens = [
+        {"titulo": "Item 1", "badge": "N1"},
+        {"titulo": "Item 2", "detalhe": "Secundário"},
+        {"titulo": "Item 3"},
+    ]
+    col1, col2 = _ctx_falso(), _ctx_falso()
+
+    with (
+        patch.object(tema_dxc.st, "session_state", fake_state),
+        patch.object(tema_dxc.st, "container", return_value=_ctx_falso()),
+        patch.object(tema_dxc.st, "columns", return_value=[col1, col2]),
+        patch.object(tema_dxc.st, "markdown") as mock_md,
+        patch.object(tema_dxc.st, "button") as mock_btn,
+    ):
+        # Estado inicial: 1 de 3 visível
+        tema_dxc.render_card_cascata("Evidências", itens, "k3")
+        html_1 = " ".join(c[0][0] for c in mock_md.call_args_list)
+        assert "1 de 3" in html_1
+        assert "Item 1" in html_1
+        assert "Item 2" not in html_1 and "Item 3" not in html_1
+        assert mock_btn.call_args[0][0] == "Mostrar próximo (+1) ↓"
+        assert mock_btn.call_args[1]["key"] == "cascata_next_k3"
+
+        # Avança para 2 de 3
+        tema_dxc._avancar_cascata("cascata_visiveis_k3", 3)
+        assert fake_state["cascata_visiveis_k3"] == 2
+        mock_md.reset_mock()
+        col1.button.reset_mock()
+        col2.button.reset_mock()
+        tema_dxc.render_card_cascata("Evidências", itens, "k3")
+        html_2 = " ".join(c[0][0] for c in mock_md.call_args_list)
+        assert "2 de 3" in html_2
+        assert "cascata-secondary" in html_2
+        assert "Item 2" in html_2 and "Item 3" not in html_2
+        assert col1.button.call_args[0][0] == "Mostrar próximo (+1) ↓"
+        assert col2.button.call_args[0][0] == "Recolher ↑"
+
+        # Avança para 3 de 3
+        tema_dxc._avancar_cascata("cascata_visiveis_k3", 3)
+        assert fake_state["cascata_visiveis_k3"] == 3
+        mock_md.reset_mock()
+        mock_btn.reset_mock()
+        tema_dxc.render_card_cascata("Evidências", itens, "k3")
+        html_3 = " ".join(c[0][0] for c in mock_md.call_args_list)
+        assert "3 de 3" in html_3 and "Item 3" in html_3
+        assert mock_btn.call_args[0][0] == "Recolher ↑"
+        assert mock_btn.call_args[1]["key"] == "cascata_reset_k3"
+
+        # Recolhe de volta para 1
+        tema_dxc._recolher_cascata("cascata_visiveis_k3")
+        assert fake_state["cascata_visiveis_k3"] == 1
+
+
+def test_render_card_cascata_escapa_html():
+    """Garante escape de HTML malicioso em título, detalhe e badge."""
+    fake_state = {"lang": "PT"}
+    itens = [{"titulo": "<script>alert(1)</script>", "detalhe": "<b>x</b>", "badge": "<img src=x>"}]
+    with (
+        patch.object(tema_dxc.st, "session_state", fake_state),
+        patch.object(tema_dxc.st, "markdown") as mock_md,
+    ):
+        tema_dxc.render_card_cascata("Segurança", itens, "xss", envolver_card=False)
+        html_saida = " ".join(c[0][0] for c in mock_md.call_args_list)
+        assert "<script>" not in html_saida
+        assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html_saida
+        assert "&lt;b&gt;x&lt;/b&gt;" in html_saida
+        assert "&lt;img src=x&gt;" in html_saida
+
+
+def test_cobertura_blocos_traduzidos_percepcao_e_acoes():
+    """Garante paridade entre LEITURAS, tipos de Palpite e ações de auditoria."""
+    tipos_palpite = {"necessidade_nao_dita", "padrao", "risco_recorrencia"}
+    acoes_db = {"urgencia_alterada", "decisao", "reabriu"}
+    for idioma in ("PT", "EN"):
+        bloco = tema_dxc.I18N[idioma]
+        assert set(bloco["leituras"]) == set(LEITURAS)
+        assert set(bloco["hipoteses"]) == tipos_palpite
+        assert set(bloco["perguntas_hipotese"]) == tipos_palpite
+        assert set(bloco["acoes"]) == acoes_db

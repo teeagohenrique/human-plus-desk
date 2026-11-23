@@ -8,6 +8,7 @@ vocabulário de negócio mostrado ao usuário. Sem dependência de Streamlit.
 I18N = {
     "PT": {
         # Navegação e identidade
+        "lang_code": "PT",
         "nav_label": "Navegação",
         "nav_marina": "Central de Atendimento",
         "nav_rafael": "Gestão e Qualidade",
@@ -17,6 +18,19 @@ I18N = {
         "adapter": "Motor de IA",
         "rules_opt": "Motor de regras (offline)",
         "gemini_opt": "Gemini (API)",
+        "adapter_help": (
+            "O motor de regras é determinístico e funciona offline. O Gemini envia o texto já "
+            "mascarado à API; a primeira carga da fila leva alguns minutos devido ao intervalo da cota gratuita."
+        ),
+        "gemini_first_load_warn": (
+            "A primeira carga com Gemini processa 16 chamados (32 chamadas à API com intervalo da "
+            "cota gratuita) e leva cerca de 2 a 3 minutos. Depois fica em cache."
+        ),
+        "gemini_missing_key": "Sem GEMINI_API_KEY no .env: o painel usará o motor de regras.",
+        "gemini_missing_model": "Defina GEMINI_MODEL no .env para escolher o modelo.",
+        "gemini_env_caption": "Modelo lido do .env; para trocar, edite o arquivo e recarregue.",
+        "gemini_progress_init": "Montando a fila com Gemini: 0/{total}… (primeira carga leva cerca de 2 a 3 min)",
+        "gemini_progress_step": "Montando a fila com Gemini: {passo}/{total} ({etapa})",
         "eyebrow_marina": "Human+ · Console de Atendimento",
         "eyebrow_rafael": "Human+ · Observabilidade e Calibração",
         "title_marina": "Central de Atendimento",
@@ -68,6 +82,31 @@ I18N = {
             "regras": "Motor de regras (offline)",
             "fallback": "Contingência por regras",
         },
+        "leituras": {
+            "pressa_prazo": "Pressão de prazo",
+            "cansaco_repeticao": "Cansaço com a repetição do problema",
+            "perda_de_confianca": "Perda de confiança no serviço",
+            "inseguranca_solucao": "Insegurança sobre a solução",
+            "duvida_de_uso": "Dúvida de uso, não falha",
+        },
+        "hipoteses": {
+            "necessidade_nao_dita": "Pode ser que, além da correção, ajude uma solução provisória para cumprir o prazo mencionado.",
+            "padrao": "Pode não ser um caso isolado: há {n} chamados parecidos nos últimos {dias} dias.",
+            "risco_recorrencia": "Parece que a repetição pode estar pesando na relação com o serviço; uma resposta padrão talvez não baste.",
+        },
+        "perguntas_hipotese": {
+            "necessidade_nao_dita": "Existe um caminho provisório que ajudaria a cumprir esse prazo antes da correção definitiva?",
+            "padrao": "Esses chamados podem ter a mesma causa? Vale investigar a raiz em vez de tratar cada um?",
+            "risco_recorrencia": "Faz sentido tratar este caso com prioridade maior e avisar que o histórico foi considerado?",
+        },
+        "acoes": {
+            "urgencia_alterada": "Urgência alterada",
+            "decisao": "Decisão registrada",
+            "reabriu": "Chamado reaberto",
+        },
+        "history_prefix": "Histórico",
+        "filter_label": "Filtrar",
+        "steps_label": "Etapas",
         "triage": "Triagem",
         "draft": "Sugestão",
         "confidence": "Confiança",
@@ -114,6 +153,8 @@ I18N = {
         "sup_reading_none": "Nenhuma interpretação escolhida.",
         "sup_urgency": "Urgência: a IA sugeriu **{ia}** · definida pela analista **{humano}**",
         "sup_urgency_pending": "Urgência: a IA sugeriu **{ia}** · ainda não definida",
+        "sup_urg_set": "IA: {ia} · Analista: {humano}",
+        "sup_urg_pending": "IA: {ia} · A definir",
         "box_reply": "Resposta ao cliente",
         "box_reply_hint": "Esta é a resposta que o cliente receberá. O corretor ortográfico é o do seu navegador.",
         "reply_placeholder": "Escreva ou complemente aqui a resposta ao cliente...",
@@ -158,9 +199,62 @@ I18N = {
         "db_reopen_done": "Chamado reaberto e registrado no banco.",
         "db_empty": "Nenhum chamado finalizado no banco.",
         "db_events": "Últimos eventos registrados",
+        "col_decision": "Decisão",
+        "col_tickets": "Chamados",
+        "col_urgency": "Urgência",
+        "col_day": "Dia",
+        "col_handled": "Atendimentos",
+        "col_reading": "Interpretação",
+        "col_times": "Vezes",
+        "col_share": "Uso",
+        "col_responses": "Respostas",
+        "col_agreed": "Concordou",
+        "col_rate": "Taxa",
+        "readings_custom_count": "{n} vez(es) a analista escreveu a própria interpretação.",
+        "readings_none_yet": "Nenhuma interpretação registrada ainda.",
+        "overview_caution": "Poucas decisões = poucos dados: leia estes gráficos como indícios, não como conclusões.",
+        "cal_progress": "{respostas} de {minimo} respostas necessárias para propor mudanças na lista",
+        "cal_share_axis": "Participação nas respostas",
+        "cal_caption": (
+            "Interpretação própria escrita pela analista: {livre} (acima de {lim_livre} a lista não é reduzida). "
+            "Uma interpretação só é proposta para sair se ficar abaixo de {lim_rara}."
+        ),
+        "cal_exp_insufficient": "Informação insuficiente: {respostas} de {minimo} respostas. Faltam {faltam}.",
+        "cal_exp_high_custom": (
+            "A analista escreveu a própria leitura em {share} dos casos (limite {lim_livre}). "
+            "A lista pode não cobrir a realidade: não reduzir."
+        ),
+        "cal_exp_min_active": "A lista já está no mínimo ({min_ativas} leituras).",
+        "cal_exp_candidate": "Há uma leitura candidata a sair. Precisa da aprovação do gestor.",
+        "cal_exp_none": "Nenhuma leitura abaixo do limite de uso. Nada a propor.",
+        "cal_prop_reason": "Escolhida em {uso} de {respostas} respostas (limite {lim_rara}).",
+        "cal_proposal_line": "**Proposta:** retirar “{leitura}”. {motivo}",
+        "cal_approve_sim": "Aprovar (indisponível com dados simulados)",
+        "cal_approve_btn": "Aprovar a retirada (gestor)",
+        "cal_active_today": "Interpretações ativas hoje: ",
+        "urg_cal_empty": "Ainda não há urgências confirmadas pela analista.",
+        "urg_cal_agree": "Concordância IA × analista",
+        "urg_cal_higher": "Analista achou MAIS urgente",
+        "urg_cal_higher_help": "Erro mais crítico: a IA subestimou.",
+        "urg_cal_lower": "Analista achou MENOS urgente",
+        "urg_cal_insufficient": "Informação insuficiente para concluir: {n} de {minimo} respostas.",
+        "urg_cal_by_conf": "Concordância por confiança da IA",
+        "urg_cal_axis": "Concordância",
+        "urg_cal_matrix_title": "Matriz (IA sugeriu × Analista decidiu)",
+        "urg_cal_matrix_index": "IA sugeriu",
+        "urg_cal_caption": (
+            "A analista escolhe a urgência explicitamente (sem pré-seleção) para evitar concordância automática."
+        ),
+        "autonomy_title": "Visão futura (desligado no MVP): Portão de Autonomia",
+        "autonomy_info": (
+            "No MVP (v2), todas as decisões permanecem 100% humanas. O módulo `src/autonomia.py` "
+            "(portão estatístico Clopper-Pearson) permanece guardado no repositório para fases futuras, "
+            "quando houver volume real de chamados e modelos treinados."
+        ),
     },
     "EN": {
         # Navigation and identity
+        "lang_code": "EN",
         "nav_label": "Navigation",
         "nav_marina": "Service Console",
         "nav_rafael": "Quality Management",
@@ -170,6 +264,19 @@ I18N = {
         "adapter": "AI Engine",
         "rules_opt": "Rules engine (offline)",
         "gemini_opt": "Gemini (API)",
+        "adapter_help": (
+            "The rules engine is deterministic and runs offline. Gemini sends already-masked text to the API; "
+            "the first queue load takes a few minutes due to free-tier rate spacing."
+        ),
+        "gemini_first_load_warn": (
+            "First load with Gemini processes 16 tickets (32 API calls with free-tier rate spacing) "
+            "and takes about 2–3 minutes. Subsequent views use the cache."
+        ),
+        "gemini_missing_key": "No GEMINI_API_KEY in .env: the console will use the rules engine.",
+        "gemini_missing_model": "Set GEMINI_MODEL in .env to choose the model.",
+        "gemini_env_caption": "Model read from .env; to switch, edit the file and reload.",
+        "gemini_progress_init": "Building queue with Gemini: 0/{total}… (first load takes ~2–3 min)",
+        "gemini_progress_step": "Building queue with Gemini: {passo}/{total} ({etapa})",
         "eyebrow_marina": "Human+ · AI-Assisted Service Desk",
         "eyebrow_rafael": "Human+ · Observability & Calibration",
         "title_marina": "Service Console",
@@ -221,6 +328,31 @@ I18N = {
             "regras": "Rules engine (offline)",
             "fallback": "Rules contingency",
         },
+        "leituras": {
+            "pressa_prazo": "Deadline pressure",
+            "cansaco_repeticao": "Fatigue from repeated issues",
+            "perda_de_confianca": "Loss of trust in the service",
+            "inseguranca_solucao": "Uncertainty about the solution",
+            "duvida_de_uso": "Usage question, not a defect",
+        },
+        "hipoteses": {
+            "necessidade_nao_dita": "In addition to the fix, a temporary workaround might help meet the mentioned deadline.",
+            "padrao": "This may not be an isolated case: there are {n} similar tickets in the last {dias} days.",
+            "risco_recorrencia": "Repeated issues may be straining trust in the service; a standard reply may not be enough.",
+        },
+        "perguntas_hipotese": {
+            "necessidade_nao_dita": "Is there a temporary workaround that could help meet this deadline before the permanent fix?",
+            "padrao": "Could these tickets share the same root cause? Is it worth investigating the root cause instead of handling each separately?",
+            "risco_recorrencia": "Does it make sense to handle this case with higher priority and acknowledge that the history was considered?",
+        },
+        "acoes": {
+            "urgencia_alterada": "Urgency updated",
+            "decisao": "Decision logged",
+            "reabriu": "Ticket reopened",
+        },
+        "history_prefix": "History",
+        "filter_label": "Filter",
+        "steps_label": "Steps",
         "triage": "Triage",
         "draft": "Suggestion",
         "confidence": "Confidence",
@@ -267,6 +399,8 @@ I18N = {
         "sup_reading_none": "No interpretation chosen.",
         "sup_urgency": "Urgency: the AI suggested **{ia}** · set by the analyst **{humano}**",
         "sup_urgency_pending": "Urgency: the AI suggested **{ia}** · not set yet",
+        "sup_urg_set": "AI: {ia} · Analyst: {humano}",
+        "sup_urg_pending": "AI: {ia} · Pending",
         "box_reply": "Reply to customer",
         "box_reply_hint": "This is the reply the customer will receive. Spell check is your browser's.",
         "reply_placeholder": "Write or complete the customer reply here...",
@@ -311,5 +445,57 @@ I18N = {
         "db_reopen_done": "Ticket reopened and logged in the database.",
         "db_empty": "No resolved tickets in the database.",
         "db_events": "Latest logged events",
+        "col_decision": "Decision",
+        "col_tickets": "Tickets",
+        "col_urgency": "Urgency",
+        "col_day": "Day",
+        "col_handled": "Tickets handled",
+        "col_reading": "Interpretation",
+        "col_times": "Count",
+        "col_share": "Share",
+        "col_responses": "Responses",
+        "col_agreed": "Agreed",
+        "col_rate": "Rate",
+        "readings_custom_count": "The analyst wrote a custom interpretation {n} time(s).",
+        "readings_none_yet": "No interpretations logged yet.",
+        "overview_caution": "Few decisions = limited data: treat these charts as signals, not conclusions.",
+        "cal_progress": "{respostas} of {minimo} responses needed to propose list changes",
+        "cal_share_axis": "Share of responses",
+        "cal_caption": (
+            "Custom interpretations written by the analyst: {livre} (above {lim_livre} the list is not reduced). "
+            "An interpretation is only proposed for removal if below {lim_rara}."
+        ),
+        "cal_exp_insufficient": "Insufficient data: {respostas} of {minimo} responses. {faltam} more needed.",
+        "cal_exp_high_custom": (
+            "The analyst wrote a custom interpretation in {share} of cases (limit {lim_livre}). "
+            "The list may not cover reality: do not reduce."
+        ),
+        "cal_exp_min_active": "The list is already at its minimum ({min_ativas} interpretations).",
+        "cal_exp_candidate": "One interpretation is a candidate for removal. Manager approval required.",
+        "cal_exp_none": "No interpretation below the usage threshold. Nothing to propose.",
+        "cal_prop_reason": "Chosen in {uso} of {respostas} responses (threshold {lim_rara}).",
+        "cal_proposal_line": "**Proposal:** remove “{leitura}”. {motivo}",
+        "cal_approve_sim": "Approve (disabled with simulated data)",
+        "cal_approve_btn": "Approve removal (manager)",
+        "cal_active_today": "Currently active interpretations: ",
+        "urg_cal_empty": "No urgencies confirmed by the analyst yet.",
+        "urg_cal_agree": "AI × analyst agreement",
+        "urg_cal_higher": "Analyst rated MORE urgent",
+        "urg_cal_higher_help": "Most critical error: the AI underestimated.",
+        "urg_cal_lower": "Analyst rated LESS urgent",
+        "urg_cal_insufficient": "Insufficient data to conclude: {n} of {minimo} responses.",
+        "urg_cal_by_conf": "Agreement by AI confidence",
+        "urg_cal_axis": "Agreement",
+        "urg_cal_matrix_title": "Matrix (AI suggested × Analyst decided)",
+        "urg_cal_matrix_index": "AI suggested",
+        "urg_cal_caption": (
+            "The analyst chooses urgency explicitly (no pre-selection) to avoid automatic agreement."
+        ),
+        "autonomy_title": "Future vision (disabled in MVP): Autonomy Gate",
+        "autonomy_info": (
+            "In the MVP (v2), all decisions remain 100% human. The `src/autonomia.py` module "
+            "(Clopper-Pearson statistical gate) stays stored in the repository for future phases "
+            "when real ticket volume and trained models are available."
+        ),
     },
 }

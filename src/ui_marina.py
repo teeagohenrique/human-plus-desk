@@ -22,9 +22,20 @@ from src.painel import (
     rascunho_adaptado,
     registrar_decisao,
 )
-from src.percepcao import LEITURAS, trechos_da_leitura
+from src.percepcao import trechos_da_leitura
 from src.redator import _PLACEHOLDER
-from src.ui_comum import CONFIG, COR, LOG, fila_base, formatar_data_hora, nome_sinal
+from src.tema_dxc import render_card_cascata
+from src.ui_comum import (
+    CONFIG,
+    COR,
+    LOG,
+    fila_base,
+    formatar_data_hora,
+    nome_sinal,
+    traduzir_hipotese_salva,
+    traduzir_leitura,
+    traduzir_palpite,
+)
 
 LEITURA_PROPRIA = "__propria__"
 VISOES = ("fila", "critica", "finalizados")
@@ -128,37 +139,59 @@ def _render_indicadores(txt: dict, total: int, qtd_fila: int, qtd_critica: int, 
 
 # ---------------------------------------------------------------- blocos reutilizáveis
 
-def _render_supervisao(txt: dict, d: dict) -> None:
-    """Registro de supervisão (somente leitura): o que foi apresentado e como foi decidido.
+def _render_supervisao(
+    txt: dict,
+    d: dict,
+    chave_unica: str,
+    subtitulo: str | None = None,
+) -> None:
+    """Registro de supervisão (somente leitura) com exibição em cascata.
 
     Recebe o mesmo pacote gravado por `detalhes_supervisao`; campos ausentes em
     registros antigos são tratados sem erro.
     """
     niveis = txt["niveis"]
-    st.markdown(f"**{txt['sup_analysis']}**")
-    hipoteses = d.get("hipoteses") or []
-    if hipoteses:
-        for h in hipoteses:
-            st.markdown(f"- {h['hipotese']} *({niveis.get(h['confianca'], h['confianca'])})*")
-            for e in h.get("evidencias", []):
-                st.caption(f"{nome_sinal(e['sinal'], txt)}: “{e['trecho']}”")
-    else:
-        st.caption(txt["sup_no_hyp"])
-
-    st.markdown(f"**{txt['sup_reading']}**")
-    if d.get("leitura"):
-        st.markdown(LEITURAS.get(d["leitura"], d["leitura"]))
-    elif d.get("leitura_livre"):
-        st.markdown(f"✎ {d['leitura_livre']}")
-    else:
-        st.caption(txt["sup_reading_none"])
-
     ia = niveis.get(d.get("urgencia_ia"), "—")
     humano = d.get("urgencia_analista")
-    if humano:
-        st.markdown(txt["sup_urgency"].format(ia=ia, humano=niveis.get(humano, humano)))
+    if d.get("leitura"):
+        leitura_desc = traduzir_leitura(d["leitura"], txt)
+    elif d.get("leitura_livre"):
+        leitura_desc = f"✎ {d['leitura_livre']}"
     else:
-        st.markdown(txt["sup_urgency_pending"].format(ia=ia))
+        leitura_desc = txt["sup_reading_none"]
+
+    titulo_urg = (
+        txt["sup_urg_set"].format(ia=ia, humano=niveis.get(humano, humano))
+        if humano
+        else txt["sup_urg_pending"].format(ia=ia)
+    )
+    itens_sup = [
+        {
+            "titulo": titulo_urg,
+            "badge": txt["triage"],
+            "detalhe": f"{txt['sup_reading']}: {leitura_desc}",
+        }
+    ]
+    for h in d.get("hipoteses") or []:
+        ev_texto = " | ".join(
+            f"{nome_sinal(e['sinal'], txt)}: “{e['trecho']}”"
+            for e in h.get("evidencias", [])
+        )
+        itens_sup.append(
+            {
+                "titulo": traduzir_hipotese_salva(h["hipotese"], len(h.get("evidencias", [])), txt),
+                "badge": niveis.get(h["confianca"], h["confianca"]),
+                "detalhe": ev_texto,
+            }
+        )
+
+    render_card_cascata(
+        txt["box_supervision"],
+        itens_sup,
+        chave_unica=chave_unica,
+        vazio=txt["sup_no_hyp"],
+        subtitulo=subtitulo,
+    )
 
 
 # ---------------------------------------------------------------- finalizados
@@ -175,7 +208,7 @@ def _render_finalizados(itens: list, estado_db: dict, txt: dict) -> None:
         st.info(txt["fin_empty"])
         return
 
-    esquerda, direita = st.columns([1.0, 2.3], gap="large")
+    esquerda, direita = st.columns([1.0, 2.1], gap="large")
     with esquerda, st.container(border=True, key="fila_bento_card"):
         st.markdown(f"##### {txt['kpi_done']} ({len(ids)})")
         ativo = st.session_state.get("chamado_concluido_ativo")
@@ -197,7 +230,7 @@ def _render_finalizados(itens: list, estado_db: dict, txt: dict) -> None:
         (e for e in reversed(repositorio.eventos(chamado_id=escolhido)) if e["acao"] == "decisao"), None
     )
     d = (decisao_evento or {}).get("detalhes", {})
-    quando = formatar_data_hora(tk.get("resolvido_em"))
+    quando = formatar_data_hora(tk.get("resolvido_em"), lang=txt.get("lang_code", "PT"))
     urgencia = tk.get("urgencia_confirmada") or d.get("urgencia_analista") or (ref.triagem.urgencia if ref else "baixa")
     decisao = decisoes.get(d.get("decisao"), "—")
     categoria = intencoes.get(ref.triagem.intencao, ref.triagem.intencao) if ref else "—"
@@ -223,12 +256,10 @@ def _render_finalizados(itens: list, estado_db: dict, txt: dict) -> None:
             st.markdown(f"> {tk.get('texto_mascarado') or '—'}")
 
         if d:
-            with st.container(border=True):
-                st.markdown(f"**{txt['box_supervision']}**")
-                _render_supervisao(txt, d)
-                if d.get("rascunho_ia"):
-                    with st.expander(txt["fin_suggestion_ia"]):
-                        st.write(d["rascunho_ia"])
+            _render_supervisao(txt, d, chave_unica=f"sup_fin_{escolhido}")
+            if d.get("rascunho_ia"):
+                with st.expander(txt["fin_suggestion_ia"]):
+                    st.write(d["rascunho_ia"])
 
 
 # ---------------------------------------------------------------- fila
@@ -242,7 +273,7 @@ def _render_fila(base: list, visao: str, txt: dict, urgencia_efetiva):
         fila = base
         if visao == "fila":
             filtro = st.pills(
-                "Filtrar", options=["todas", "alta", "media", "baixa"], default="todas",
+                txt["filter_label"], options=["todas", "alta", "media", "baixa"], default="todas",
                 format_func=lambda k: txt["all"] if k == "todas" else f"{COR[k]} {niveis[k]}",
                 label_visibility="collapsed", key="filtro_urgencia",
             )
@@ -275,24 +306,37 @@ def _etapa_analise(item, txt: dict) -> None:
         st.markdown(f"> {item.texto_mascarado}")
 
     col_trechos, col_analise = st.columns(2, gap="medium")
-    with col_trechos, st.container(border=True):
-        st.markdown(f"**{txt['evidences']}**")
-        motivos = t.motivos_urgencia + t.motivos_intencao
-        if motivos:
-            for m in motivos:
-                st.markdown(f"- **{nome_sinal(m.sinal, txt)}:** “{m.trecho}”")
-        else:
-            st.caption(txt["no_evidences"])
-    with col_analise, st.container(border=True):
-        qtd = len(item.palpites)
-        st.markdown(f"**{txt['perception']} ({qtd} {txt['hyp_one'] if qtd == 1 else txt['hyp_many']})**")
-        if not item.palpites:
-            st.caption(txt["no_guesses"])
-        for p in item.palpites:
-            st.markdown(f"- {p.hipotese} *({niveis.get(p.confianca, p.confianca)})*")
-            st.caption(f"{txt['confirm_q']} {p.pergunta_confirmacao}")
-            if p.sugere_subir_urgencia:
-                st.warning(txt["raise_warn"])
+    motivos = t.motivos_urgencia + t.motivos_intencao
+    itens_ev = [
+        {"titulo": f"“{m.trecho}”", "badge": nome_sinal(m.sinal, txt)}
+        for m in motivos
+    ]
+    with col_trechos:
+        render_card_cascata(
+            txt["evidences"],
+            itens_ev,
+            chave_unica=f"evidencias_{item.id}",
+            vazio=txt["no_evidences"],
+        )
+
+    itens_hip = []
+    for p in item.palpites:
+        hip_txt, perg_txt = traduzir_palpite(p, txt)
+        itens_hip.append(
+            {
+                "titulo": hip_txt,
+                "detalhe": f"{txt['confirm_q']} {perg_txt}",
+                "badge": niveis.get(p.confianca, p.confianca),
+                "alerta": txt["raise_warn"] if p.sugere_subir_urgencia else "",
+            }
+        )
+    with col_analise:
+        render_card_cascata(
+            txt["perception"],
+            itens_hip,
+            chave_unica=f"analise_{item.id}",
+            vazio=txt["no_guesses"],
+        )
 
     with st.container(key="cta_step_1"):
         st.button(txt["go_2"], type="primary", width="stretch", key=f"go2_{item.id}",
@@ -306,7 +350,7 @@ def _etapa_decisao(item, estado: dict, txt: dict, agente: str) -> None:
         leitura = st.pills(
             txt["reading_lbl"], options=opcoes,
             default=estado["leitura"] if estado["leitura"] in opcoes else None,
-            format_func=lambda k: txt["reading_custom"] if k == LEITURA_PROPRIA else LEITURAS.get(k, k),
+            format_func=lambda k: txt["reading_custom"] if k == LEITURA_PROPRIA else traduzir_leitura(k, txt),
             key=f"leit_ui_{item.id}",
         )
         estado["leitura"] = leitura
@@ -315,13 +359,18 @@ def _etapa_decisao(item, estado: dict, txt: dict, agente: str) -> None:
                 txt["free_reading"], value=estado["leitura_livre"], key=f"livre_ui_{item.id}",
             )
         elif leitura:
-            st.markdown(f"**{txt['reading_evidence_title']}**")
             trechos = trechos_da_leitura(leitura, t, item.palpites)
-            if trechos:
-                for m in trechos:
-                    st.markdown(f"- **{nome_sinal(m.sinal, txt)}:** “{m.trecho}”")
-            else:
-                st.caption(txt["reading_no_evidence"])
+            itens_tr = [
+                {"titulo": f"“{m.trecho}”", "badge": nome_sinal(m.sinal, txt)}
+                for m in trechos
+            ]
+            render_card_cascata(
+                txt["reading_evidence_title"],
+                itens_tr,
+                chave_unica=f"ev_leitura_{item.id}_{leitura}",
+                vazio=txt["reading_no_evidence"],
+                envolver_card=False,
+            )
 
         estado["urgencia"] = st.pills(
             txt["urg_lbl"].format(sug=niveis[t.urgencia]),
@@ -361,10 +410,13 @@ def _etapa_resposta(item, estado: dict, txt: dict, agente: str, provider: str) -
         st.button(txt["btn_use_suggestion"], key=f"usar_{item.id}", width="stretch",
                   on_click=_usar_sugestao, args=(chave_sugestao, chave_resposta))
     pacote = detalhes_supervisao(item, leitura_registro, leitura_livre, estado["urgencia"], rascunho.texto, origem)
-    with col_supervisao, st.container(border=True):
-        st.markdown(f"**{txt['box_supervision']}**")
-        st.caption(txt["box_supervision_hint"])
-        _render_supervisao(txt, pacote)
+    with col_supervisao:
+        _render_supervisao(
+            txt,
+            pacote,
+            chave_unica=f"sup_resp_{item.id}",
+            subtitulo=txt["box_supervision_hint"],
+        )
 
     with st.container(border=True, key="caixa_resposta"):
         st.markdown(f"**{txt['box_reply']}**")
@@ -404,7 +456,7 @@ def _etapa_resposta(item, estado: dict, txt: dict, agente: str, provider: str) -
 # ---------------------------------------------------------------- tela
 
 def tela_marina(provider: str, txt: dict, agente: str = "Marina") -> None:
-    itens = fila_base(provider, os.getenv("GEMINI_MODEL", ""))
+    itens = fila_base(provider, os.getenv("GEMINI_MODEL", ""), txt=txt)
     estado_db = repositorio.estado(repositorio.DATASET_FILA)
     feitos = repositorio.ids_concluidos(repositorio.DATASET_FILA)
     fila_completa = [i for i in itens if i.id not in feitos]
@@ -429,7 +481,7 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina") -> None:
         st.success(txt["queue_done"] if visao == "fila" else txt["empty_filter"])
         return
 
-    esquerda, direita = st.columns([1.0, 2.3], gap="large")
+    esquerda, direita = st.columns([1.0, 2.1], gap="large")
     with esquerda:
         item = _render_fila(base, visao, txt, urgencia_efetiva)
     if item is None:
@@ -474,7 +526,7 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina") -> None:
             unsafe_allow_html=True,
         )
         escolhida = st.segmented_control(
-            "Etapas", options=list(etapas), format_func=lambda k: f"{etapas[k][1]} {etapas[k][0]}",
+            txt["steps_label"], options=list(etapas), format_func=lambda k: f"{etapas[k][1]} {etapas[k][0]}",
             label_visibility="collapsed", key=f"camada_{item.id}",
         )
         if escolhida is not None:

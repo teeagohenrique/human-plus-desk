@@ -5,11 +5,15 @@ O modulo depende de Streamlit e Altair. As funcoes puras sao testadas direto;
 """
 import json
 from datetime import datetime
+from unittest.mock import MagicMock, patch
 
 import altair as alt
 import pytest
 
 from src import ui_comum
+from src.percepcao import JANELA_DIAS, Palpite
+from src.textos import I18N
+from src.triagem import Motivo
 
 
 @pytest.mark.parametrize("valor", [None, ""])
@@ -108,5 +112,85 @@ def test_fila_base_le_arquivos_e_repassa_provider_e_modelo(monkeypatch, tmp_path
         assert visto["provider"] == "gemini"
         assert visto["model"] == "gemini-2.5-flash"
         assert caminhos_lidos == [tmp_path / "data" / "historico_simulado.json"] * 2
+    finally:
+        ui_comum.fila_base.clear()
+
+
+def test_formatar_data_hora_en_e_nome_sinal_en():
+    assert ui_comum.formatar_data_hora("2026-11-23T10:30:45", lang="EN") == "2026-11-23 at 10:30:45"
+    assert ui_comum.nome_sinal("historico:C01", I18N["EN"]) == "History (C01)"
+
+
+def test_traduzir_leitura_palpite_e_hipotese_salva():
+    assert ui_comum.traduzir_leitura("pressa_prazo", I18N["PT"]) == "Pressão de prazo"
+    assert ui_comum.traduzir_leitura("pressa_prazo", I18N["EN"]) == "Deadline pressure"
+    assert ui_comum.traduzir_leitura("desconhecida", I18N["EN"]) == "desconhecida"
+
+    ev = [Motivo(sinal="historico:C01", trecho="erro"), Motivo(sinal="historico:C02", trecho="erro")]
+    p = Palpite(
+        tipo="padrao",
+        hipotese=f"Pode não ser um caso isolado: há 2 chamados parecidos nos últimos {JANELA_DIAS} dias.",
+        evidencias=ev,
+        confianca="media",
+        pergunta_confirmacao="Pergunta PT?",
+        leituras=["cansaco_repeticao"],
+    )
+    hip_en, perg_en = ui_comum.traduzir_palpite(p, I18N["EN"])
+    assert f"2 similar tickets in the last {JANELA_DIAS} days" in hip_en
+    assert "root cause" in perg_en
+
+    assert ui_comum.traduzir_hipotese_salva(p.hipotese, 2, I18N["PT"]) == p.hipotese
+    assert ui_comum.traduzir_hipotese_salva(p.hipotese, 2, I18N["EN"]) == hip_en
+    assert "temporary workaround" in ui_comum.traduzir_hipotese_salva(
+        "Pode ser que, além da correção, ajude uma solução provisória para cumprir o prazo mencionado.",
+        1,
+        I18N["EN"],
+    )
+    assert "Repeated issues" in ui_comum.traduzir_hipotese_salva(
+        "Parece que a repetição pode estar pesando na relação com o serviço; uma resposta padrão talvez não baste.",
+        1,
+        I18N["EN"],
+    )
+
+
+def test_fila_base_gemini_exibe_progresso_e_reaproveita_cache_entre_idiomas(monkeypatch, tmp_path):
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "chamados_simulados.json").write_text(
+        json.dumps({"chamados": [{"id": "C1", "texto": "t1"}, {"id": "C2", "texto": "t2"}]}),
+        encoding="utf-8",
+    )
+    chamadas = 0
+
+    def montar(chamados, hist, provider=None, model=None, ao_avancar=None):
+        nonlocal chamadas
+        chamadas += 1
+        assert ao_avancar is not None
+        ao_avancar(1, 4, "C1:triagem")
+        ao_avancar(2, 4, "C1:rascunho")
+        ao_avancar(3, 4, "C2:triagem")
+        ao_avancar(4, 4, "C2:rascunho")
+        return ["ok"]
+
+    barra = MagicMock()
+    slot = MagicMock()
+    slot.progress.return_value = barra
+
+    monkeypatch.setattr(ui_comum, "RAIZ", tmp_path)
+    monkeypatch.setattr(ui_comum, "carregar_historico", lambda _: {})
+    monkeypatch.setattr(ui_comum, "montar_fila", montar)
+
+    ui_comum.fila_base.clear()
+    try:
+        with patch.object(ui_comum.st, "empty", return_value=slot):
+            assert ui_comum.fila_base("gemini", "m", txt=I18N["EN"]) == ["ok"]
+            assert ui_comum.fila_base("gemini", "m", txt=I18N["PT"]) == ["ok"]
+
+        assert chamadas == 1
+        assert slot.progress.call_args[1]["text"] == I18N["EN"]["gemini_progress_init"].format(total=4)
+        textos_passos = [c[1]["text"] for c in barra.progress.call_args_list]
+        assert len(textos_passos) == 4
+        assert "1/4 (C1 · Triage)" in textos_passos[0]
+        assert "4/4 (C2 · Suggestion)" in textos_passos[3]
+        slot.empty.assert_called_once()
     finally:
         ui_comum.fila_base.clear()

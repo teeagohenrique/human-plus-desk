@@ -269,3 +269,21 @@ def test_trechos_da_leitura_so_traz_evidencia_literal_do_chamado():
         assert m.trecho in item.texto_mascarado or m.sinal.startswith("historico:")
     assert trechos_da_leitura("inseguranca_solucao", item.triagem, palpites) == []
     assert trechos_da_leitura("leitura_inexistente", item.triagem, palpites) == []
+
+
+def test_montar_fila_emite_progresso_incremental_por_etapa():
+    eventos = []
+    itens = montar_fila(
+        CHAMADOS[:2],
+        HIST,
+        provider="regras",
+        ao_avancar=lambda passo, total, etapa: eventos.append((passo, total, etapa)),
+    )
+    assert len(itens) == 2
+    assert len(eventos) == 4
+    assert [e[0] for e in eventos] == [1, 2, 3, 4]
+    assert all(e[1] == 4 for e in eventos)
+    assert eventos[0][2].endswith(":triagem")
+    assert eventos[1][2].endswith(":rascunho")
+    assert eventos[2][2].endswith(":triagem")
+    assert eventos[3][2].endswith(":rascunho")

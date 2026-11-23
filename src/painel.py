@@ -7,6 +7,7 @@ import json
 import random
 import re
 from collections import Counter
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -49,18 +50,27 @@ def montar_fila(
     historicos: dict[str, list[Historico]],
     provider: str | None = None,
     model: str | None = None,
+    ao_avancar: Callable[[int, int, str], None] | None = None,
 ) -> list[ItemFila]:
     """Monta a fila já mascarada, com triagem e rascunho do provedor escolhido."""
     itens = []
+    total_etapas = len(chamados) * 2
+    etapa = 0
     for c in chamados:
         m = mascarar(c["texto"])
         t, origem_t = llm.triagem_com_origem(m.texto, provider=provider, model=model)
+        etapa += 1
+        if ao_avancar is not None:
+            ao_avancar(etapa, total_etapas, f"{c['id']}:triagem")
         palpites = perceber(m.texto, t, historicos.get(c["id"], []))
         leitura_inicial = palpites[0].leituras[0] if palpites else None
         r, origem_r = llm.rascunho_com_origem(
             m.texto, t, palpites=palpites, leitura=leitura_inicial,
             provider=provider, model=model,
         )
+        etapa += 1
+        if ao_avancar is not None:
+            ao_avancar(etapa, total_etapas, f"{c['id']}:rascunho")
         itens.append(ItemFila(
             id=c["id"], texto_mascarado=m.texto, triagem=t,
             palpites=palpites, rascunho=r,

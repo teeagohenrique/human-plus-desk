@@ -4,6 +4,8 @@ Camada de apresentação: traduções PT/EN, tema DXC (Claro/Escuro), logotipo
 e seletor de idioma. Nenhuma regra de negócio, persistência ou chamada de
 modelo vive aqui.
 """
+import html
+
 import streamlit as st
 
 from src.textos import I18N  # noqa: F401  (reexportado: fonte unica dos rotulos)
@@ -42,6 +44,9 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         fg_active = "#FFFFFF"
         radio_off_bg = "#1A1E2B"
         step_cta_bg = "linear-gradient(90deg, #4F2D7F 0%, #B82968 50%, #FF6B00 100%)"
+        bg_cascata_1 = "#212638"
+        bg_cascata_2 = "#151822"
+        bd_cascata_1 = "rgba(124, 58, 237, 0.45)"
         pend_fg, alert_fg, done_fg = "#FDE68A", "#FDA4AF", "#A7F3D0"
         btn_dis_bg, btn_dis_fg = "#252A3D", "#64748B"
     else:
@@ -68,6 +73,9 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         fg_active = "#3B1C6E"
         radio_off_bg = "#FFFFFF"
         step_cta_bg = "#4F2D7F"
+        bg_cascata_1 = "#F8F6FC"
+        bg_cascata_2 = "#F8FAFC"
+        bd_cascata_1 = "rgba(91, 44, 152, 0.28)"
         pend_fg, alert_fg, done_fg = "#B45309", "#BE123C", "#047857"
         btn_dis_bg, btn_dis_fg = "#E2E8F0", "#94A3B8"
 
@@ -196,7 +204,7 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         }}
         /* Alinhamento simétrico da fila + micro-feedback (deslocamento + seta) no item ativo */
         .st-key-fila_bento_card {{
-            min-height: 460px;
+            min-height: 440px;
         }}
         .st-key-fila_bento_card div[role="radiogroup"] label {{
             padding: 5px 10px;
@@ -290,6 +298,74 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         div[class*="st-key-caixa_resposta"] {{
             border-color: rgba(124, 58, 237, 0.48) !important;
             box-shadow: 0 0 18px rgba(124, 58, 237, 0.14);
+        }}
+        .cascata-header {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }}
+        .cascata-title {{
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 0.96rem;
+            color: {txt_main};
+        }}
+        .cascata-counter {{
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 2px 9px;
+            border-radius: 999px;
+            background: {eyebrow_bg};
+            color: {eyebrow_fg};
+            border: 1px solid {eyebrow_bd};
+            white-space: nowrap;
+        }}
+        .cascata-primary {{
+            background: {bg_cascata_1};
+            border: 1px solid {bd_cascata_1};
+            border-left: 3px solid #7C3AED;
+            border-radius: 10px;
+            padding: 11px 14px;
+            margin-bottom: 8px;
+        }}
+        .cascata-secondary {{
+            background: {bg_cascata_2};
+            border: 1px solid {border_card};
+            border-left: 2px solid {txt_sub};
+            border-radius: 8px;
+            padding: 9px 12px;
+            margin-bottom: 6px;
+            margin-left: 8px;
+        }}
+        .cascata-item-top {{
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
+        }}
+        .cascata-item-title {{
+            font-weight: 600;
+            font-size: 0.90rem;
+            color: {txt_main};
+            line-height: 1.4;
+        }}
+        .cascata-item-detail {{
+            font-size: 0.82rem;
+            color: {txt_muted};
+            margin-top: 4px;
+            line-height: 1.45;
+        }}
+        .cascata-badge {{
+            font-size: 0.70rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: {chip_bg};
+            border: 1px solid {border_card};
+            color: {txt_muted};
+            white-space: nowrap;
         }}
         .bento-kpi::before {{
             content: "";
@@ -399,3 +475,118 @@ def render_language_selector() -> str:
             st.session_state["lang"] = "EN"
             st.rerun()
     return st.session_state["lang"]
+
+
+def _avancar_cascata(state_key: str, total: int) -> None:
+    """Revela o próximo item da lista progressiva até o limite total."""
+    atual = int(st.session_state.get(state_key, 1))
+    st.session_state[state_key] = min(atual + 1, total)
+
+
+def _recolher_cascata(state_key: str) -> None:
+    """Recolhe os níveis secundários, mantendo apenas o destaque principal."""
+    st.session_state[state_key] = 1
+
+
+def render_card_cascata(
+    titulo: str,
+    itens: list[dict],
+    chave_unica: str,
+    vazio: str = "Nenhum item disponível.",
+    subtitulo: str | None = None,
+    envolver_card: bool = True,
+) -> None:
+    """Renderiza um bloco com exibição progressiva em cascata (Design System DXC).
+
+    Exibe cabeçalho com contador, nível 1 em destaque e revelação progressiva sob
+    demanda dos itens secundários. Cada dict aceita `titulo`, `detalhe`, `badge`
+    e `alerta` (todos opcionais exceto `titulo`).
+    """
+    state_key = f"cascata_visiveis_{chave_unica}"
+    total = len(itens)
+    lang = st.session_state.get("lang", "PT")
+    visiveis = min(max(int(st.session_state.get(state_key, 1)), 1), total) if total > 0 else 0
+    if total > 0:
+        contador = f"{visiveis} de {total}" if lang == "PT" else f"{visiveis} of {total}"
+    else:
+        contador = "Total: 0"
+
+    def _render_corpo() -> None:
+        st.markdown(
+            f'<div class="cascata-header">'
+            f'<span class="cascata-title">{html.escape(titulo)}</span>'
+            f'<span class="cascata-counter">{html.escape(contador)}</span>'
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        if subtitulo:
+            st.caption(subtitulo)
+        if total == 0:
+            st.caption(vazio)
+            return
+
+        for idx, item in enumerate(itens[:visiveis]):
+            classe = "cascata-primary" if idx == 0 else "cascata-secondary"
+            item_titulo = html.escape(str(item.get("titulo", "")))
+            item_badge = str(item.get("badge") or "").strip()
+            item_detalhe = str(item.get("detalhe") or "").strip()
+            badge_html = f'<span class="cascata-badge">{html.escape(item_badge)}</span>' if item_badge else ""
+            detalhe_html = (
+                f'<div class="cascata-item-detail">{html.escape(item_detalhe)}</div>'
+                if item_detalhe
+                else ""
+            )
+            st.markdown(
+                f'<div class="{classe}">'
+                f'<div class="cascata-item-top">'
+                f'<span class="cascata-item-title">{item_titulo}</span>'
+                f"{badge_html}"
+                f"</div>"
+                f"{detalhe_html}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+            if item.get("alerta"):
+                st.warning(item["alerta"])
+
+        if total > 1:
+            lbl_next = "Mostrar próximo (+1) ↓" if lang == "PT" else "Show next (+1) ↓"
+            lbl_reset = "Recolher ↑" if lang == "PT" else "Collapse ↑"
+            if visiveis < total and visiveis > 1:
+                col_next, col_reset = st.columns(2)
+                col_next.button(
+                    lbl_next,
+                    key=f"cascata_next_{chave_unica}",
+                    width="stretch",
+                    on_click=_avancar_cascata,
+                    args=(state_key, total),
+                )
+                col_reset.button(
+                    lbl_reset,
+                    key=f"cascata_reset_{chave_unica}",
+                    width="stretch",
+                    on_click=_recolher_cascata,
+                    args=(state_key,),
+                )
+            elif visiveis < total:
+                st.button(
+                    lbl_next,
+                    key=f"cascata_next_{chave_unica}",
+                    width="stretch",
+                    on_click=_avancar_cascata,
+                    args=(state_key, total),
+                )
+            else:
+                st.button(
+                    lbl_reset,
+                    key=f"cascata_reset_{chave_unica}",
+                    width="stretch",
+                    on_click=_recolher_cascata,
+                    args=(state_key,),
+                )
+
+    if envolver_card:
+        with st.container(border=True):
+            _render_corpo()
+    else:
+        _render_corpo()

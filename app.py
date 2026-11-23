@@ -56,14 +56,15 @@ with st.sidebar:
         ["regras", "gemini"],
         index=0,
         format_func=lambda k: txt["rules_opt"] if k == "regras" else txt["gemini_opt"],
-        help="O motor de regras é determinístico e funciona offline. O Gemini envia o texto já mascarado à API.",
+        help=txt["adapter_help"],
     )
     if provider == "gemini":
+        st.info(txt["gemini_first_load_warn"])
         if not os.getenv("GEMINI_API_KEY"):
-            st.warning("Sem GEMINI_API_KEY no .env: o painel usará o motor de regras.")
+            st.warning(txt["gemini_missing_key"])
         if not os.getenv("GEMINI_MODEL"):
-            st.warning("Defina GEMINI_MODEL no .env para escolher o modelo.")
-        st.caption("Modelo lido do .env; para trocar, edite o arquivo e recarregue.")
+            st.warning(txt["gemini_missing_model"])
+        st.caption(txt["gemini_env_caption"])
 
     st.divider()
     st.caption(txt["footer"])
