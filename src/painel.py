@@ -11,14 +11,15 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from src import auditoria
+from src import auditoria, llm
 from src.mascara import mascarar
 from src.percepcao import LEITURAS, Historico, Palpite, perceber
-from src.redator import Rascunho, gerar_rascunho
-from src.triagem import Triagem, triar
+from src.redator import Rascunho
+from src.triagem import Triagem
 
 ORDEM_URGENCIA = {"alta": 0, "media": 1, "baixa": 2}
 DECISOES = ("aprovou", "editou", "rejeitou")
+ORIGENS = ("gemini", "regras", "fallback")
 
 
 class ItemFila(BaseModel):
@@ -27,6 +28,10 @@ class ItemFila(BaseModel):
     triagem: Triagem
     palpites: list[Palpite]
     rascunho: Rascunho
+    origem_triagem: str = "regras"
+    origem_rascunho: str = "regras"
+    leitura_inicial: str | None = None
+    provider_rascunho: str = "regras"
 
 
 def carregar_historico(caminho: Path) -> dict[str, list[Historico]]:
@@ -34,21 +39,62 @@ def carregar_historico(caminho: Path) -> dict[str, list[Historico]]:
     return {k: [Historico(**h) for h in v] for k, v in dados.items()}
 
 
-def montar_fila(chamados: list[dict], historicos: dict[str, list[Historico]]) -> list[ItemFila]:
+def montar_fila(
+    chamados: list[dict],
+    historicos: dict[str, list[Historico]],
+    provider: str | None = None,
+    model: str | None = None,
+) -> list[ItemFila]:
+    """Monta a fila já mascarada, com triagem e rascunho do provedor escolhido."""
     itens = []
     for c in chamados:
         m = mascarar(c["texto"])
-        t = triar(m.texto)
+        t, origem_t = llm.triagem_com_origem(m.texto, provider=provider, model=model)
         palpites = perceber(m.texto, t, historicos.get(c["id"], []))
         leitura_inicial = palpites[0].leituras[0] if palpites else None
+        r, origem_r = llm.rascunho_com_origem(
+            m.texto, t, palpites=palpites, leitura=leitura_inicial,
+            provider=provider, model=model,
+        )
         itens.append(ItemFila(
             id=c["id"], texto_mascarado=m.texto, triagem=t,
-            palpites=palpites,
-            rascunho=gerar_rascunho(m.texto, t, palpites=palpites, leitura=leitura_inicial),
+            palpites=palpites, rascunho=r,
+            origem_triagem=origem_t, origem_rascunho=origem_r,
+            leitura_inicial=leitura_inicial,
+            provider_rascunho=llm.resolver_provider(provider),
         ))
     # Mais urgentes primeiro; dentro da urgência, maior pontuação primeiro.
     itens.sort(key=lambda i: (ORDEM_URGENCIA[i.triagem.urgencia], -i.triagem.pontuacao_urgencia, i.id))
     return itens
+
+
+def rascunho_adaptado(
+    item: ItemFila,
+    leitura: str | None,
+    provider: str | None = None,
+    model: str | None = None,
+    cache: dict | None = None,
+) -> tuple[Rascunho, str]:
+    """Rascunho reagindo à leitura escolhida, com cache para não repetir chamadas.
+
+    O Streamlit reexecuta o script a cada interação; sem o cache, trocar a leitura
+    ou aprovar um item geraria novas requisições à API. Na leitura inicial, o
+    rascunho já foi gerado por `montar_fila` e é reaproveitado — isso evita uma
+    segunda chamada por chamado logo ao abrir o painel.
+    """
+    chave = (item.id, leitura or "", provider or "regras", model or "")
+    if cache is not None and chave in cache:
+        return cache[chave]
+    if leitura == item.leitura_inicial and llm.resolver_provider(provider) == item.provider_rascunho:
+        resultado = (item.rascunho, item.origem_rascunho)
+    else:
+        resultado = llm.rascunho_com_origem(
+            item.texto_mascarado, item.triagem, palpites=item.palpites, leitura=leitura,
+            provider=provider, model=model,
+        )
+    if cache is not None:
+        cache[chave] = resultado
+    return resultado
 
 
 def leituras_do_item(item: ItemFila, eventos: list[dict], config: dict) -> list[str]:
@@ -73,7 +119,8 @@ def decisao_por_texto(texto_original: str, texto_final: str) -> str:
 
 def registrar_decisao(log: Path, item: ItemFila, decisao: str, texto_final: str | None,
                       leitura: str | None = None, leitura_livre: str | None = None,
-                      urgencia_analista: str | None = None, urgencia_automatica: bool = False) -> None:
+                      urgencia_analista: str | None = None, urgencia_automatica: bool = False,
+                      origem_triagem: str | None = None, origem_rascunho: str | None = None) -> None:
     if decisao not in DECISOES:
         raise ValueError(f"decisão inválida: {decisao}")
     if urgencia_analista is not None and urgencia_analista not in ORDEM_URGENCIA:
@@ -84,7 +131,9 @@ def registrar_decisao(log: Path, item: ItemFila, decisao: str, texto_final: str 
          "recorrente": item.triagem.recorrente, "leitura": leitura,
          "leitura_livre": (leitura_livre or None), "sem_palpites": not item.palpites,
          "confianca_triagem": item.triagem.confianca, "urgencia_analista": urgencia_analista,
-         "urgencia_automatica": urgencia_automatica},
+         "urgencia_automatica": urgencia_automatica,
+         "origem_triagem": origem_triagem or item.origem_triagem,
+         "origem_rascunho": origem_rascunho or item.origem_rascunho},
         decisao=decisao, texto_final=texto_final,
     )
 

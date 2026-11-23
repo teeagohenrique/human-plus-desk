@@ -48,13 +48,10 @@ def avaliar(eventos: list[dict], ativas: list[str]) -> dict:
     resp = _respostas(eventos)
     n = len(resp)
     cont = {k: 0 for k in ativas}
-    outras_removidas = 0
     for e in resp:
         k = e["saida"].get("leitura")
         if k in cont:
             cont[k] += 1
-        elif k:
-            outras_removidas += 1
     livres = sum(1 for e in resp if e["saida"].get("leitura_livre"))
     return {
         "respostas": n,

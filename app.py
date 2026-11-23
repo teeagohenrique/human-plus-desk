@@ -4,6 +4,7 @@ Duas telas: Painel da Marina (decide) e Painel do Rafael (gráficos).
 A IA só sugere; aqui nada é enviado de verdade: a decisão é registrada na auditoria.
 """
 import json
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -12,10 +13,11 @@ import streamlit as st
 from src import auditoria
 from src.calibracao import (LIMIAR_LIVRE, LIMIAR_RARA, MIN_DECISOES, aprovar_reducao, avaliar,
                             carregar_config, propor_reducao)
+from src.config import carregar_env
 from src.painel import (carregar_historico, decisao_por_texto, gerar_simulado, ids_decididos, leituras_do_item,
-                        metricas, montar_fila, registrar_decisao, calibracao_triagem)
+                        metricas, montar_fila, registrar_decisao, calibracao_triagem, rascunho_adaptado)
 from src.percepcao import LEITURAS
-from src.redator import _PLACEHOLDER, gerar_rascunho
+from src.redator import _PLACEHOLDER
 
 RAIZ = Path(__file__).resolve().parent
 LOG = RAIZ / "data" / "painel_log.jsonl"
@@ -24,20 +26,27 @@ CONFIG = RAIZ / "data" / "calibracao_config.json"
 COR = {"alta": "🔴", "media": "🟠", "baixa": "🟢"}
 NOMES_DECISAO = {"aprovou": "Aprovou", "editou": "Editou", "rejeitou": "Rejeitou"}
 
+carregar_env(RAIZ / ".env")
 st.set_page_config(page_title="Human + Desk", page_icon="🤝", layout="wide")
 
+ROTULO_ORIGEM = {
+    "gemini": "sugestão gerada por Gemini",
+    "regras": "sugestão por regras",
+    "fallback": "fallback por regras",
+}
 
-@st.cache_data
-def fila_base():
+
+@st.cache_data(show_spinner="Montando a fila com o adaptador escolhido…")
+def fila_base(provider: str = "regras", model: str = ""):
     chamados = json.loads((RAIZ / "data" / "chamados_simulados.json").read_text(encoding="utf-8"))["chamados"]
     hist = carregar_historico(RAIZ / "data" / "historico_simulado.json")
-    return montar_fila(chamados, hist)
+    return montar_fila(chamados, hist, provider=provider, model=model or None)
 
 
-def tela_marina():
+def tela_marina(provider: str):
     st.title("Painel da Marina")
     st.caption("A IA só sugere. Quem decide é você. Nada é enviado: a decisão fica registrada na auditoria.")
-    itens = fila_base()
+    itens = fila_base(provider, os.getenv("GEMINI_MODEL", ""))
     feitos = ids_decididos(auditoria.ler(LOG))
     fila = [i for i in itens if i.id not in feitos]
     st.metric("Chamados na fila", len(fila), help=f"{len(feitos)} já decididos")
@@ -56,6 +65,7 @@ def tela_marina():
         st.subheader(f"{COR[t.urgencia]} {item.id}: urgência {t.urgencia} ({t.pontuacao_urgencia} pts)")
         st.markdown(f"> {item.texto_mascarado}")
         st.caption("Texto já com dados pessoais mascarados.")
+        st.caption(f"Triagem: **{ROTULO_ORIGEM.get(item.origem_triagem, item.origem_triagem)}**.")
 
         st.markdown(f"**Triagem:** {t.intencao} (confiança {t.confianca})")
         with st.expander("Por quê? (trechos do chamado)", expanded=True):
@@ -96,7 +106,13 @@ def tela_marina():
         if urgencia_analista is None:
             st.info("Selecione a urgência acima para liberar a decisão (evita concordância automática).")
 
-        rascunho_atual = gerar_rascunho(item.texto_mascarado, t, palpites=item.palpites, leitura=leitura)
+        if "cache_rascunhos" not in st.session_state:
+            st.session_state.cache_rascunhos = {}
+        rascunho_atual, origem_rascunho = rascunho_adaptado(
+            item, leitura, provider, os.getenv("GEMINI_MODEL", ""),
+            st.session_state.cache_rascunhos,
+        )
+        st.caption(f"Rascunho: **{ROTULO_ORIGEM.get(origem_rascunho, origem_rascunho)}**.")
         st.markdown("**Rascunho da resposta** (adaptado à leitura escolhida; edite à vontade)")
         texto = st.text_area(
             "Resposta",
@@ -116,23 +132,30 @@ def tela_marina():
             type="primary",
             key=f"ok_{item.id}",
         ):
-            registrar_decisao(LOG, item, decisao_por_texto(rascunho_atual.texto, texto), texto, leitura, leitura_livre, urgencia_analista, False)
+            registrar_decisao(
+                LOG, item, decisao_por_texto(rascunho_atual.texto, texto), texto,
+                leitura, leitura_livre, urgencia_analista, False,
+                origem_triagem=item.origem_triagem, origem_rascunho=origem_rascunho,
+            )
             st.rerun()
         if c2.button(
             "✖ Rejeitar (escrevo a minha)",
             disabled=urgencia_analista is None,
             key=f"rej_{item.id}",
         ):
-            registrar_decisao(LOG, item, "rejeitou", None, leitura, leitura_livre, urgencia_analista, False)
+            registrar_decisao(
+                LOG, item, "rejeitou", None, leitura, leitura_livre, urgencia_analista, False,
+                origem_triagem=item.origem_triagem, origem_rascunho=origem_rascunho,
+            )
             st.rerun()
 
 
-def tela_rafael():
+def tela_rafael(provider: str):
     st.title("Painel do Rafael (gestor)")
     usar_sim = st.toggle("Usar dados SIMULADOS (demonstração)", value=not LOG.exists())
     if usar_sim:
         if st.button("Gerar/atualizar dados simulados"):
-            gerar_simulado(LOG_SIM, fila_base())
+            gerar_simulado(LOG_SIM, fila_base(provider, os.getenv("GEMINI_MODEL", "")))
         st.warning("⚠️ Dados INVENTADOS, só para ver os gráficos. Não representam resultados reais.")
         eventos = auditoria.ler(LOG_SIM)
     else:
@@ -219,6 +242,20 @@ def tela_rafael():
         )
 
 
+st.sidebar.divider()
+provider = st.sidebar.selectbox(
+    "Adaptador de IA",
+    ["regras", "gemini"],
+    index=0,
+    help="Regras é determinístico e funciona offline. Gemini envia o texto já mascarado à API.",
+)
+if provider == "gemini":
+    if not os.getenv("GEMINI_API_KEY"):
+        st.sidebar.warning("Sem GEMINI_API_KEY no .env: o painel usará regras.")
+    if not os.getenv("GEMINI_MODEL"):
+        st.sidebar.warning("Defina GEMINI_MODEL no .env para escolher o modelo.")
+    st.sidebar.caption("O modelo é lido do .env; para trocar, edite o arquivo e recarregue.")
+
 pagina = st.sidebar.radio("Tela", ["Painel da Marina", "Painel do Rafael"])
 st.sidebar.caption("Human + Desk v2 · MVP enxuto · humano no controle")
-(tela_marina if pagina == "Painel da Marina" else tela_rafael)()
+(tela_marina if pagina == "Painel da Marina" else tela_rafael)(provider)

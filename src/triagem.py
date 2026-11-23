@@ -27,7 +27,7 @@ PALAVRAS_INTENCAO: dict[str, list[str]] = {
 SINAIS_URGENCIA: dict[str, tuple[re.Pattern, int]] = {
     "prazo": (re.compile(
         r"até\s+(?:o\s+)?meio[- ]dia|até\s+o\s+fim\s+do\s+dia"
-        r"|(?:até\s+(?:as\s+|às\s+)?|às\s+|as\s+)\d{1,2}\s?(?:h|:)\d{0,2}"
+        r"|\b(?:até\s+(?:as\s+|às\s+)?|às\s+|as\s+|das\s+)\d{1,2}\s?(?:h|:)\d{0,2}"
         r"|até\s+(?:amanhã|segunda|terça|quarta|quinta|sexta)"
         r"|(?:até|ainda|para|pra)\s+hoje|hoje\s+ainda|urgente|urgência", re.I), 2),
     "recorrencia": (re.compile(

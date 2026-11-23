@@ -10,6 +10,10 @@ Princípios:
   trecho exatamente (normalizando apenas espaços) contra o texto MASCARADO.
 - O adaptador Gemini espaça chamadas e aplica backoff limitado: 3 tentativas
   para 429 (respeitando o `retryDelay`) e 5 para 503 (picos de demanda).
+- `CONTADOR_TRIAGEM` registra a origem de cada triagem: `gemini`, `regras` ou
+  `fallback` (Gemini pedido, mas respondido pelas regras).
+- `triagem_com_origem` e `rascunho_com_origem` devolvem `(objeto, origem)` para
+  que o painel mostre o selo de procedência em cada chamado.
 """
 import os
 import re
@@ -31,6 +35,23 @@ ESPERA_503_BASE = 10.0
 ESPERA_503_TETO = 60.0
 STATUS_TRANSIENTES = (429, 503)
 _ULTIMA_CHAMADA_GEMINI: float | None = None
+
+CONTADOR_TRIAGEM = {"gemini": 0, "regras": 0, "fallback": 0}
+
+
+def zerar_contador_triagem() -> None:
+    """Zera as categorias antes de uma medição."""
+    for chave in CONTADOR_TRIAGEM:
+        CONTADOR_TRIAGEM[chave] = 0
+
+
+def obter_contador_triagem() -> dict[str, int]:
+    """Devolve uma cópia, para que chamadores não alterem o contador."""
+    return dict(CONTADOR_TRIAGEM)
+
+
+def _registrar_triagem(categoria: str) -> None:
+    CONTADOR_TRIAGEM[categoria] += 1
 
 
 def _pausar_entre_chamadas() -> None:
@@ -83,7 +104,7 @@ def _chamar_api_gemini(cliente: Any, modelo: str, contents: str, config: Any) ->
         except Exception as exc:
             status = _status_erro(exc)
             limite = MAX_TENTATIVAS_503 if status == 503 else MAX_TENTATIVAS_API
-            if status not in STATUS_TRANSIENTES or tentativa == limite - 1:
+            if status not in STATUS_TRANSIENTES or tentativa >= limite - 1:
                 raise
             espera = _retry_delay(exc)
             if espera is None:
@@ -98,10 +119,21 @@ def _normalizar_espacos(texto: str) -> str:
     return " ".join(texto.split())
 
 
+def _trecho_esta_na_base(trecho_norm: str, base: str) -> bool:
+    """Confere presença literal com fronteira de palavra nas pontas alfanuméricas."""
+    padrao = re.escape(trecho_norm)
+    if trecho_norm[0].isalnum() or trecho_norm[0] == "_":
+        padrao = rf"(?<!\w){padrao}"
+    if trecho_norm[-1].isalnum() or trecho_norm[-1] == "_":
+        padrao = rf"{padrao}(?!\w)"
+    return re.search(padrao, base) is not None
+
+
 def validar_trechos(trechos: list[str], texto_mascarado: str) -> tuple[bool, list[str]]:
     """Confere se cada trecho é evidência LITERAL presente em `texto_mascarado`.
 
-    Normaliza apenas espaços consecutivos, preservando capitalização exata.
+    Normaliza apenas espaços consecutivos, preservando capitalização exata e
+    fronteira de palavra (ex.: 'cai' não casa dentro de 'caiu').
     Compara contra o texto já mascarado para barrar tanto citações inventadas
     quanto trechos que vazem dados pessoais removidos pela máscara.
     """
@@ -109,7 +141,7 @@ def validar_trechos(trechos: list[str], texto_mascarado: str) -> tuple[bool, lis
     invalidos: list[str] = []
     for trecho in trechos:
         t = _normalizar_espacos(trecho)
-        if not t or t not in base:
+        if not t or not _trecho_esta_na_base(t, base):
             invalidos.append(trecho)
     return (len(invalidos) == 0), invalidos
 
@@ -142,15 +174,18 @@ def _modelo_gemini(model: str | None = None) -> str:
     return escolhido
 
 
-def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativas: int = 2) -> Triagem:
+def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativas: int = 2) -> tuple[Triagem, str]:
     try:
         from google import genai
         from google.genai import types
     except ImportError:
-        return triar(texto_mascarado)
+        return triar(texto_mascarado), "fallback"
 
     modelo = _modelo_gemini(model)
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    try:
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    except Exception:
+        return triar(texto_mascarado), "fallback"
     prompt_base = (
         "Classifique o chamado de service desk abaixo em português.\n"
         "Regras obrigatórias:\n"
@@ -164,26 +199,31 @@ def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativ
     feedback = ""
     for _ in range(max_tentativas):
         prompt = prompt_base if not feedback else f"{prompt_base}\n\nCorrija o erro anterior: {feedback}"
-        resp = _chamar_api_gemini(
-            client,
-            modelo,
-            prompt,
-            types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=Triagem,
-                temperature=0.0,
-            ),
-        )
+        try:
+            resp = _chamar_api_gemini(
+                client,
+                modelo,
+                prompt,
+                types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=Triagem,
+                    temperature=0.0,
+                ),
+            )
+        except Exception:
+            # Cota esgotada, 503 persistente ou queda de rede: a tela não pode
+            # quebrar. Sai do loop e devolve a triagem determinística.
+            break
         triagem = resp.parsed
         if isinstance(triagem, Triagem):
             ok, invalidos = validar_triagem_trechos(triagem, texto_mascarado)
             if ok:
-                return triagem
+                return triagem, "gemini"
             feedback = f"Os seguintes trechos não aparecem literalmente no chamado mascarado: {invalidos}."
         else:
             feedback = "A resposta não seguiu o esquema Pydantic Triagem."
 
-    return triar(texto_mascarado)
+    return triar(texto_mascarado), "fallback"
 
 
 def _rascunho_gemini(
@@ -193,15 +233,18 @@ def _rascunho_gemini(
     leitura: str | None = None,
     model: str | None = None,
     max_tentativas: int = 2,
-) -> Rascunho:
+) -> tuple[Rascunho, str]:
     try:
         from google import genai
         from google.genai import types
     except ImportError:
-        return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura)
+        return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura), "fallback"
 
     modelo = _modelo_gemini(model)
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    try:
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    except Exception:
+        return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura), "fallback"
     contexto_palpites = "; ".join(getattr(p, "hipotese", str(p)) for p in (palpites or [])) or "nenhum"
     prompt_base = (
         "Escreva um rascunho curto de resposta de service desk em português no estilo OARS "
@@ -220,35 +263,72 @@ def _rascunho_gemini(
     feedback = ""
     for _ in range(max_tentativas):
         prompt = prompt_base if not feedback else f"{prompt_base}\n\nCorrija a violação de guardrail: {feedback}"
-        resp = _chamar_api_gemini(
-            client,
-            modelo,
-            prompt,
-            types.GenerateContentConfig(temperature=0.2),
-        )
+        try:
+            resp = _chamar_api_gemini(
+                client,
+                modelo,
+                prompt,
+                types.GenerateContentConfig(temperature=0.2),
+            )
+        except Exception:
+            break
         texto = (resp.text or "").strip()
         ok, retorno = validar_rascunho(texto, texto_mascarado)
-        if ok:
+        # Exigir os dois marcadores impede que o modelo decida o prazo no lugar
+        # da analista: o guardrail sozinho remove os placeholders e não bloqueia.
+        faltantes = [p for p in (PEND_PRAZO, PEND_PROVISORIA) if p not in texto]
+        if ok and not faltantes:
             return Rascunho(
                 texto=texto,
-                pendencias=[p for p in (PEND_PRAZO, PEND_PROVISORIA) if p in texto],
+                pendencias=[PEND_PRAZO, PEND_PROVISORIA],
                 passou_guardrail=True,
                 feedback_guardrail="",
-            )
-        feedback = retorno
+            ), "gemini"
+        if not ok:
+            feedback = retorno
+        else:
+            feedback = f"Faltam os marcadores obrigatórios entre colchetes: {faltantes}. Inclua-os exatamente como fornecidos."
 
-    return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura)
+    return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura), "fallback"
+
+
+def triagem_com_origem(
+    texto_mascarado: str, provider: str | None = None, model: str | None = None
+) -> tuple[Triagem, str]:
+    """Devolve `(triagem, origem)`; origem é `gemini`, `regras` ou `fallback`."""
+    ativo = resolver_provider(provider)
+    if ativo == "gemini":
+        triagem, origem = _triagem_gemini(texto_mascarado, model=model)
+    else:
+        triagem = triar(texto_mascarado)
+        ok, invalidos = validar_triagem_trechos(triagem, texto_mascarado)
+        if not ok:
+            raise ValueError(f"Trechos inválidos na triagem por regras: {invalidos}")
+        origem = "regras"
+    _registrar_triagem(origem)
+    return triagem, origem
 
 
 def triagem_com_llm(texto_mascarado: str, provider: str | None = None, model: str | None = None) -> Triagem:
+    """Compatibilidade: devolve só a triagem, sem a origem."""
+    return triagem_com_origem(texto_mascarado, provider=provider, model=model)[0]
+
+
+def rascunho_com_origem(
+    texto_mascarado: str,
+    triagem: Triagem,
+    palpites: list | None = None,
+    leitura: str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+) -> tuple[Rascunho, str]:
+    """Devolve `(rascunho, origem)`; origem é `gemini`, `regras` ou `fallback`."""
     ativo = resolver_provider(provider)
     if ativo == "gemini":
-        return _triagem_gemini(texto_mascarado, model=model)
-    resultado = triar(texto_mascarado)
-    ok, invalidos = validar_triagem_trechos(resultado, texto_mascarado)
-    if not ok:
-        raise ValueError(f"Trechos inválidos na triagem por regras: {invalidos}")
-    return resultado
+        return _rascunho_gemini(
+            texto_mascarado, triagem, palpites=palpites, leitura=leitura, model=model
+        )
+    return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura), "regras"
 
 
 def rascunho_com_llm(
@@ -259,7 +339,8 @@ def rascunho_com_llm(
     provider: str | None = None,
     model: str | None = None,
 ) -> Rascunho:
-    ativo = resolver_provider(provider)
-    if ativo == "gemini":
-        return _rascunho_gemini(texto_mascarado, triagem, palpites=palpites, leitura=leitura, model=model)
-    return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura)
+    """Compatibilidade: devolve só o rascunho, sem a origem."""
+    return rascunho_com_origem(
+        texto_mascarado, triagem, palpites=palpites, leitura=leitura,
+        provider=provider, model=model,
+    )[0]

@@ -61,3 +61,13 @@ def test_carregar_env_sem_arquivo_nao_falha(monkeypatch, tmp_path):
     main._carregar_env()
 
     assert "GEMINI_API_KEY" not in os.environ
+
+
+def test_carregar_env_delega_para_config_compartilhado(monkeypatch, tmp_path):
+    vistos = []
+    monkeypatch.setattr(main, "RAIZ", tmp_path)
+    monkeypatch.setattr(main, "carregar_env", lambda caminho: vistos.append(caminho))
+
+    main._carregar_env()
+
+    assert vistos == [tmp_path / ".env"]

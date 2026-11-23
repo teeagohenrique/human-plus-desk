@@ -10,11 +10,12 @@ GEMINI_API_KEY e GEMINI_MODEL podem vir do .env na raiz (ignorado pelo git).
 """
 import argparse
 import json
-import os
 from pathlib import Path
 
 from src import auditoria
-from src.llm import rascunho_com_llm, resolver_provider, triagem_com_llm
+from src.config import carregar_env
+from src.llm import (obter_contador_triagem, rascunho_com_llm, resolver_provider,
+                     triagem_com_llm, zerar_contador_triagem)
 from src.mascara import mascarar
 from src.percepcao import perceber
 
@@ -24,23 +25,9 @@ LOG = RAIZ / "data" / "auditoria.jsonl"
 
 ORDEM = {"alta": 0, "media": 1, "baixa": 2}
 
-PLACEHOLDER_CHAVE = "sua_chave_aqui"
-
-
 def _carregar_env() -> None:
-    """Carrega GEMINI_* do .env sem sobrescrever variáveis já definidas no terminal."""
-    caminho = RAIZ / ".env"
-    if not caminho.exists():
-        return
-    for linha in caminho.read_text(encoding="utf-8").splitlines():
-        linha = linha.strip()
-        if not linha or linha.startswith("#") or "=" not in linha:
-            continue
-        chave, valor = (parte.strip() for parte in linha.split("=", 1))
-        valor = valor.strip("\"'")
-        if not valor or valor == PLACEHOLDER_CHAVE:
-            continue
-        os.environ.setdefault(chave, valor)
+    """Wrapper mantido por compatibilidade; a lógica vive em `src.config`."""
+    carregar_env(RAIZ / ".env")
 
 
 def processar(
@@ -86,6 +73,7 @@ def demonstrar(provider: str | None = None) -> None:
 
 def avaliar(caminho: Path = DADOS, provider: str | None = None) -> dict:
     ativo = resolver_provider(provider)
+    zerar_contador_triagem()
     acertos_i = acertos_u = 0
     chamados = carregar(caminho)
     for c in chamados:
@@ -97,11 +85,14 @@ def avaliar(caminho: Path = DADOS, provider: str | None = None) -> dict:
         if not (ok_i and ok_u):
             print(f'{c["id"]}: previsto {t.intencao}/{t.urgencia} | gabarito {g["intencao"]}/{g["urgencia"]}')
     n = len(chamados)
+    origem = obter_contador_triagem()
+    print(f"Origem: gemini={origem['gemini']} | regras={origem['regras']} | fallback={origem['fallback']}")
     print(f"Arquivo: {Path(caminho).name} | Provider: {ativo} | "
           f"Intenção: {acertos_i}/{n} ({acertos_i/n:.0%}) | "
           f"Urgência: {acertos_u}/{n} ({acertos_u/n:.0%})")
     return {"arquivo": Path(caminho).name, "provider": ativo, "n": n,
-            "acertos_intencao": acertos_i, "acertos_urgencia": acertos_u}
+            "acertos_intencao": acertos_i, "acertos_urgencia": acertos_u,
+            "origem": origem}
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:

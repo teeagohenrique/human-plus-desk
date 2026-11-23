@@ -1,10 +1,13 @@
+from types import SimpleNamespace
+
 import pytest
 
-from src.llm import (rascunho_com_llm, resolver_provider, triagem_com_llm, validar_trechos,
-                     validar_triagem_trechos)
+from src.llm import (obter_contador_triagem, rascunho_com_llm, rascunho_com_origem,
+                     resolver_provider, triagem_com_llm, triagem_com_origem,
+                     validar_trechos, validar_triagem_trechos, zerar_contador_triagem)
 from src.mascara import mascarar
 from src.percepcao import perceber
-from src.triagem import triar
+from src.triagem import Triagem, triar
 
 CHAMADO = (
     "Bom dia, aqui é o [NOME], CPF [CPF]. O sistema de faturamento travou pela "
@@ -237,3 +240,153 @@ def test_erro_400_nao_e_repetido(monkeypatch):
     with pytest.raises(_ErroAPI):
         llm._chamar_api_gemini(cliente, "modelo", "prompt", None)
     assert cliente.chamadas == 1
+
+
+def _resposta_valida():
+    return SimpleNamespace(parsed=triar(CHAMADO))
+
+
+def _resposta_invalida():
+    t = triar(CHAMADO).model_copy(deep=True)
+    t.motivos_intencao[0].trecho = "trecho_inventado"
+    return SimpleNamespace(parsed=t)
+
+
+def _preparar_gemini_falso(monkeypatch, resposta):
+    from src import llm
+
+    monkeypatch.setenv("GEMINI_API_KEY", "chave_teste")
+    monkeypatch.setenv("GEMINI_MODEL", "modelo_teste")
+    monkeypatch.setattr(llm, "_chamar_api_gemini", lambda *args, **kwargs: resposta)
+    zerar_contador_triagem()
+
+
+def test_contador_registra_triagem_gemini(monkeypatch):
+    from src import llm
+
+    _preparar_gemini_falso(monkeypatch, _resposta_valida())
+    triagem_com_llm(CHAMADO, provider="gemini")
+    assert obter_contador_triagem() == {"gemini": 1, "regras": 0, "fallback": 0}
+    assert llm.CONTADOR_TRIAGEM is not obter_contador_triagem()
+
+
+def test_contador_registra_fallback_por_trecho_invalido(monkeypatch):
+    _preparar_gemini_falso(monkeypatch, _resposta_invalida())
+    triagem_com_llm(CHAMADO, provider="gemini")
+    assert obter_contador_triagem() == {"gemini": 0, "regras": 0, "fallback": 1}
+
+
+def test_contador_registra_triagem_por_regras(monkeypatch):
+    from src import llm
+
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    zerar_contador_triagem()
+    triagem_com_llm(CHAMADO, provider="regras")
+    assert obter_contador_triagem() == {"gemini": 0, "regras": 1, "fallback": 0}
+
+
+def test_avaliar_expoe_origem_das_respostas(monkeypatch):
+    from src import main
+
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    res = main.avaliar(main.DADOS)
+    assert res["origem"] == {"gemini": 0, "regras": res["n"], "fallback": 0}
+
+
+def test_backoff_misto_503_depois_429_para_no_limite_do_429(monkeypatch):
+    from src import llm
+
+    _preparar_sem_pausa(monkeypatch)
+    # 3 erros 503 (tentativas 0, 1, 2) seguidos de 429 na tentativa 3 (>= MAX_TENTATIVAS_API - 1)
+    cliente = _ClienteFalso([_ErroAPI(503), _ErroAPI(503), _ErroAPI(503), _ErroAPI(429, "1s"), "nao_alcanca"])
+    with pytest.raises(_ErroAPI) as exc_info:
+        llm._chamar_api_gemini(cliente, "modelo", "prompt", None)
+    assert exc_info.value.code == 429
+    assert cliente.chamadas == 4
+
+
+def test_validar_trechos_rejeita_fragmento_de_palavra_e_aceita_palavra_inteira():
+    texto = "O sistema caiu hoje. CPF [CPF]."
+    ok_frag, inv_frag = validar_trechos(["cai"], texto)
+    assert not ok_frag and inv_frag == ["cai"]
+
+    ok_full, inv_full = validar_trechos(["caiu", "[CPF]"], texto)
+    assert ok_full and inv_full == []
+
+
+def test_triagem_com_origem_devolve_gemini_e_regras(monkeypatch):
+    _preparar_gemini_falso(monkeypatch, _resposta_valida())
+    t, origem = triagem_com_origem(CHAMADO, provider="gemini")
+    assert origem == "gemini" and isinstance(t, Triagem)
+
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    t2, origem2 = triagem_com_origem(CHAMADO, provider="regras")
+    assert origem2 == "regras" and isinstance(t2, Triagem)
+
+
+def test_rascunho_gemini_exige_os_dois_marcadores_no_retry(monkeypatch):
+    from src import llm
+    from src.redator import PEND_PRAZO, PEND_PROVISORIA
+
+    monkeypatch.setenv("GEMINI_API_KEY", "chave_teste")
+    monkeypatch.setenv("GEMINI_MODEL", "modelo_teste")
+    respostas = iter([
+        SimpleNamespace(text="Olá! Entendi o problema e vamos verificar."),
+        SimpleNamespace(text=f"Olá! Entendi o problema. {PEND_PRAZO} {PEND_PROVISORIA}"),
+    ])
+    prompts_vistos = []
+
+    def chamar_falso(_cliente, _modelo, contents, _config):
+        prompts_vistos.append(contents)
+        return next(respostas)
+
+    monkeypatch.setattr(llm, "_chamar_api_gemini", chamar_falso)
+    r, origem = rascunho_com_origem(CHAMADO, triar(CHAMADO), provider="gemini")
+    assert origem == "gemini"
+    assert r.passou_guardrail
+    assert PEND_PRAZO in r.pendencias and PEND_PROVISORIA in r.pendencias
+    assert len(prompts_vistos) == 2
+    assert "Faltam os marcadores" in prompts_vistos[1]
+
+
+def test_rascunho_gemini_sem_os_dois_marcadores_cai_em_fallback(monkeypatch):
+    from src import llm
+    from src.redator import PEND_PRAZO
+
+    monkeypatch.setenv("GEMINI_API_KEY", "chave_teste")
+    monkeypatch.setenv("GEMINI_MODEL", "modelo_teste")
+    monkeypatch.setattr(
+        llm, "_chamar_api_gemini",
+        lambda *a, **k: SimpleNamespace(text=f"Olá! Entendi o problema. {PEND_PRAZO}"),
+    )
+    r, origem = rascunho_com_origem(CHAMADO, triar(CHAMADO), provider="gemini")
+    assert origem == "fallback"
+    assert r.passou_guardrail
+
+
+def test_triagem_gemini_com_excecao_de_api_cai_em_fallback(monkeypatch):
+    from src import llm
+
+    monkeypatch.setenv("GEMINI_API_KEY", "chave_teste")
+    monkeypatch.setenv("GEMINI_MODEL", "modelo_teste")
+
+    def falhar(*_args, **_kwargs):
+        raise RuntimeError("429 RESOURCE_EXHAUSTED")
+
+    monkeypatch.setattr(llm, "_chamar_api_gemini", falhar)
+    t, origem = triagem_com_origem(CHAMADO, provider="gemini")
+    assert origem == "fallback" and isinstance(t, Triagem)
+
+
+def test_rascunho_gemini_com_excecao_de_api_cai_em_fallback(monkeypatch):
+    from src import llm
+
+    monkeypatch.setenv("GEMINI_API_KEY", "chave_teste")
+    monkeypatch.setenv("GEMINI_MODEL", "modelo_teste")
+
+    def falhar(*_args, **_kwargs):
+        raise RuntimeError("503 UNAVAILABLE")
+
+    monkeypatch.setattr(llm, "_chamar_api_gemini", falhar)
+    r, origem = rascunho_com_origem(CHAMADO, triar(CHAMADO), provider="gemini")
+    assert origem == "fallback" and r.passou_guardrail
