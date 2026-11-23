@@ -1,0 +1,9 @@
+# Em uso (Partes 1 a 3: texto, regras e painel)
+pydantic>=2.0
+pandas
+streamlit>=1.40
+pytest>=8.0
+
+# Próximas partes (ainda NÃO usadas no código):
+# crewai            # orquestração dos agentes (Percepção/Redator com LLM)
+# openai-whisper    # transcrição de áudio (áudio entra só como canal)

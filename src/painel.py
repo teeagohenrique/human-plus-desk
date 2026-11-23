@@ -1,0 +1,172 @@
+"""Lógica do painel (sem Streamlit, para poder testar e trocar a tela depois).
+
+Fluxo: montar_fila -> analista decide -> registrar_decisao (auditoria) -> metricas.
+A IA só sugere; nada é "enviado": a decisão da analista é apenas registrada.
+"""
+import json
+import random
+from collections import Counter
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+from pydantic import BaseModel
+
+from src import auditoria
+from src.mascara import mascarar
+from src.percepcao import LEITURAS, Historico, Palpite, perceber
+from src.redator import Rascunho, gerar_rascunho
+from src.triagem import Triagem, triar
+
+ORDEM_URGENCIA = {"alta": 0, "media": 1, "baixa": 2}
+DECISOES = ("aprovou", "editou", "rejeitou")
+
+
+class ItemFila(BaseModel):
+    id: str
+    texto_mascarado: str
+    triagem: Triagem
+    palpites: list[Palpite]
+    rascunho: Rascunho
+
+
+def carregar_historico(caminho: Path) -> dict[str, list[Historico]]:
+    dados = json.loads(Path(caminho).read_text(encoding="utf-8"))["historicos"]
+    return {k: [Historico(**h) for h in v] for k, v in dados.items()}
+
+
+def montar_fila(chamados: list[dict], historicos: dict[str, list[Historico]]) -> list[ItemFila]:
+    itens = []
+    for c in chamados:
+        m = mascarar(c["texto"])
+        t = triar(m.texto)
+        palpites = perceber(m.texto, t, historicos.get(c["id"], []))
+        leitura_inicial = palpites[0].leituras[0] if palpites else None
+        itens.append(ItemFila(
+            id=c["id"], texto_mascarado=m.texto, triagem=t,
+            palpites=palpites,
+            rascunho=gerar_rascunho(m.texto, t, palpites=palpites, leitura=leitura_inicial),
+        ))
+    # Mais urgentes primeiro; dentro da urgência, maior pontuação primeiro.
+    itens.sort(key=lambda i: (ORDEM_URGENCIA[i.triagem.urgencia], -i.triagem.pontuacao_urgencia, i.id))
+    return itens
+
+
+def leituras_do_item(item: ItemFila, eventos: list[dict], config: dict) -> list[str]:
+    """Leituras que a analista vê: só as ativas, reordenadas pelo que ela já escolheu."""
+    from src.calibracao import reordenar
+    if not item.palpites:
+        return []
+    return reordenar(item.palpites[0].leituras, item.triagem.intencao, eventos, config["ativas"])
+
+
+def eventos_analista(eventos: list[dict]) -> list[dict]:
+    return [e for e in eventos if e["agente"] == "analista"]
+
+
+def ids_decididos(eventos: list[dict]) -> set[str]:
+    return {e["chamado_id"] for e in eventos_analista(eventos)}
+
+
+def decisao_por_texto(texto_original: str, texto_final: str) -> str:
+    return "aprovou" if texto_final.strip() == texto_original.strip() else "editou"
+
+
+def registrar_decisao(log: Path, item: ItemFila, decisao: str, texto_final: str | None,
+                      leitura: str | None = None, leitura_livre: str | None = None,
+                      urgencia_analista: str | None = None, urgencia_automatica: bool = False) -> None:
+    if decisao not in DECISOES:
+        raise ValueError(f"decisão inválida: {decisao}")
+    if urgencia_analista is not None and urgencia_analista not in ORDEM_URGENCIA:
+        raise ValueError(f"urgência inválida: {urgencia_analista}")
+    auditoria.registrar(
+        log, item.id, "analista",
+        {"urgencia": item.triagem.urgencia, "intencao": item.triagem.intencao,
+         "recorrente": item.triagem.recorrente, "leitura": leitura,
+         "leitura_livre": (leitura_livre or None), "sem_palpites": not item.palpites,
+         "confianca_triagem": item.triagem.confianca, "urgencia_analista": urgencia_analista,
+         "urgencia_automatica": urgencia_automatica},
+        decisao=decisao, texto_final=texto_final,
+    )
+
+
+def metricas(eventos: list[dict]) -> dict:
+    ev = eventos_analista(eventos)
+    total = len(ev)
+    decisoes = Counter(e["decisao_analista"] for e in ev)
+    por_urgencia: dict[str, Counter] = {u: Counter() for u in ORDEM_URGENCIA}
+    for e in ev:
+        por_urgencia[e["saida"]["urgencia"]][e["decisao_analista"]] += 1
+    leituras = Counter(e["saida"]["leitura"] for e in ev if e["saida"].get("leitura"))
+    livres = sum(1 for e in ev if e["saida"].get("leitura_livre"))
+    por_dia = Counter(e["quando"][:10] for e in ev)
+    return {
+        "total": total,
+        "decisoes": {d: decisoes.get(d, 0) for d in DECISOES},
+        "taxa_edicao": decisoes.get("editou", 0) / total if total else 0.0,
+        "taxa_rejeicao": decisoes.get("rejeitou", 0) / total if total else 0.0,
+        "por_urgencia": {u: {d: c.get(d, 0) for d in DECISOES} for u, c in por_urgencia.items()},
+        "leituras": dict(leituras),
+        "leituras_livres": livres,
+        "recorrentes": sum(1 for e in ev if e["saida"].get("recorrente")),
+        "por_dia": dict(sorted(por_dia.items())),
+    }
+
+
+def calibracao_triagem(eventos: list[dict]) -> dict:
+    """Compara a urgência sugerida pela IA com a que a analista confirmou ou mudou."""
+    ev = [e for e in eventos_analista(eventos) if e["saida"].get("urgencia_analista") and not e["saida"].get("urgencia_automatica")]
+    rank = ORDEM_URGENCIA  # menor número = mais urgente
+    por_conf: dict[str, dict] = {}
+    matriz = {u: {v: 0 for v in ORDEM_URGENCIA} for u in ORDEM_URGENCIA}
+    concordou = subiu = desceu = 0
+    for e in ev:
+        s = e["saida"]
+        ia, an = s["urgencia"], s["urgencia_analista"]
+        c = por_conf.setdefault(s.get("confianca_triagem", "desconhecida"), {"n": 0, "concordou": 0})
+        c["n"] += 1
+        matriz[ia][an] += 1
+        if ia == an:
+            concordou += 1
+            c["concordou"] += 1
+        elif rank[an] < rank[ia]:
+            subiu += 1   # a analista achou MAIS urgente que a IA (o erro mais perigoso)
+        else:
+            desceu += 1
+    for c in por_conf.values():
+        c["taxa"] = c["concordou"] / c["n"]
+    n = len(ev)
+    return {"n": n, "concordancia": concordou / n if n else 0.0, "subiu": subiu, "desceu": desceu,
+            "por_confianca": por_conf, "matriz": matriz}
+
+
+def _urgencia_simulada(rng, ia: str) -> str:
+    if rng.random() < 0.8:
+        return ia
+    niveis = list(ORDEM_URGENCIA)  # alta, media, baixa
+    i = niveis.index(ia) + rng.choice([-1, 1])
+    return niveis[min(max(i, 0), 2)]
+
+
+def gerar_simulado(caminho: Path, itens: list[ItemFila], n: int = 60, semente: int = 7) -> None:
+    """Gera decisões INVENTADAS (marcadas com simulado=True) só para ver os gráficos."""
+    rng = random.Random(semente)
+    agora = datetime.now(timezone.utc)
+    caminho = Path(caminho)
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    with caminho.open("w", encoding="utf-8") as f:
+        for _ in range(n):
+            item = rng.choice(itens)
+            decisao = rng.choices(DECISOES, weights=[45, 40, 15])[0]
+            leitura = None
+            if item.palpites and decisao != "rejeitou":
+                leitura = item.palpites[0].leituras[0] if rng.random() < 0.6 else rng.choice(list(LEITURAS))
+            quando = agora - timedelta(days=rng.randint(0, 6), minutes=rng.randint(0, 600))
+            f.write(json.dumps({
+                "quando": quando.isoformat(), "chamado_id": item.id, "agente": "analista",
+                "saida": {"urgencia": item.triagem.urgencia, "intencao": item.triagem.intencao,
+                          "recorrente": item.triagem.recorrente, "leitura": leitura, "leitura_livre": None,
+                          "sem_palpites": not item.palpites,
+                          "confianca_triagem": item.triagem.confianca,
+                          "urgencia_analista": _urgencia_simulada(rng, item.triagem.urgencia)},
+                "decisao_analista": decisao, "texto_final": None, "simulado": True,
+            }, ensure_ascii=False) + "\n")

@@ -1,0 +1,20 @@
+# Ambiente virtual e dependencias instaladas
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Segredos (nunca versionar chaves de API)
+.env
+.env.*
+
+# Logs de auditoria e do painel (podem conter texto dos chamados)
+data/*.jsonl
+*.log
+
+# Arquivos do sistema
+Thumbs.db
+.DS_Store

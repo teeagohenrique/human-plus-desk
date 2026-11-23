@@ -1,0 +1,16 @@
+{
+  "aviso": "Histórico INVENTADO para demonstração. Chave = id do chamado atual; valor = chamados anteriores do mesmo cliente (texto já mascarado).",
+  "historicos": {
+    "C01": [
+      {"chamado_id": "H1", "texto_mascarado": "O faturamento travou.", "dias_atras": 2},
+      {"chamado_id": "H2", "texto_mascarado": "O sistema travou de novo.", "dias_atras": 5}
+    ],
+    "C06": [
+      {"chamado_id": "H3", "texto_mascarado": "A VPN caiu ontem.", "dias_atras": 1}
+    ],
+    "C11": [
+      {"chamado_id": "H4", "texto_mascarado": "O e-mail não abre.", "dias_atras": 9},
+      {"chamado_id": "H5", "texto_mascarado": "Erro ao abrir o e-mail.", "dias_atras": 12}
+    ]
+  }
+}

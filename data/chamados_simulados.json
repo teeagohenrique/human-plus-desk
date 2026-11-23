@@ -1,0 +1,21 @@
+{
+  "aviso": "RASCUNHO: os campos 'gabarito' foram escritos pela IA como ponto de partida e precisam ser CONFIRMADOS ou corrigidos pela pessoa dona do projeto. Todos os dados pessoais abaixo são inventados.",
+  "chamados": [
+    {"id": "C01", "texto": "Bom dia, aqui é o Carlos, CPF 123.456.789-09. O sistema de faturamento travou pela terceira vez essa semana e eu preciso fechar o mês até o meio-dia. Meu telefone é (11) 98765-4321.", "gabarito": {"intencao": "falha_sistema", "urgencia": "alta"}},
+    {"id": "C02", "texto": "Esqueci minha senha do portal e não consigo entrar. Pode liberar um novo acesso quando der? Meu e-mail é ana.souza@empresa.com.br", "gabarito": {"intencao": "acesso", "urgencia": "baixa"}},
+    {"id": "C03", "texto": "Como faço para exportar o relatório mensal em PDF? Fiquei com dúvida porque o botão sumiu.", "gabarito": {"intencao": "duvida", "urgencia": "baixa"}},
+    {"id": "C04", "texto": "A impressora do 3º andar parou de funcionar. Toda a equipe do financeiro está sem imprimir e temos auditoria hoje.", "gabarito": {"intencao": "falha_sistema", "urgencia": "alta"}},
+    {"id": "C05", "texto": "Preciso instalar o Excel no meu notebook novo, sem pressa.", "gabarito": {"intencao": "solicitacao", "urgencia": "baixa"}},
+    {"id": "C06", "texto": "Isso é um absurdo! A VPN caiu de novo e é a segunda vez hoje. Já estou há uma hora sem conseguir trabalhar.", "gabarito": {"intencao": "falha_sistema", "urgencia": "media"}},
+    {"id": "C07", "texto": "Bom dia, vocês poderiam liberar acesso à pasta compartilhada do RH para a Júlia? Pode ser até sexta.", "gabarito": {"intencao": "acesso", "urgencia": "media"}},
+    {"id": "C08", "texto": "O sistema de folha de pagamento deu erro ao gerar os holerites e o pagamento sai hoje às 17h. Preciso de ajuda urgente.", "gabarito": {"intencao": "falha_sistema", "urgencia": "alta"}},
+    {"id": "C09", "texto": "Queria cancelar o contrato, o atendimento tem sido péssimo e ninguém resolve.", "gabarito": {"intencao": "reclamacao", "urgencia": "media"}},
+    {"id": "C10", "texto": "Onde fica a opção de alterar o endereço de cobrança? É possível mudar pelo próprio portal?", "gabarito": {"intencao": "duvida", "urgencia": "baixa"}},
+    {"id": "C11", "texto": "O e-mail não abre desde ontem e já é a quarta vez este mês. Preciso enviar a proposta até as 15h, CNPJ 12.345.678/0001-95.", "gabarito": {"intencao": "falha_sistema", "urgencia": "alta"}},
+    {"id": "C12", "texto": "Meu usuário foi bloqueado depois de errar a senha. Pode desbloquear?", "gabarito": {"intencao": "acesso", "urgencia": "baixa"}},
+    {"id": "C13", "texto": "Boa tarde, solicito a instalação do software de design na máquina da Paula. Obrigado.", "gabarito": {"intencao": "solicitacao", "urgencia": "baixa"}},
+    {"id": "C14", "texto": "O sistema está muito lento hoje, mas consigo trabalhar.", "gabarito": {"intencao": "falha_sistema", "urgencia": "baixa"}},
+    {"id": "C15", "texto": "Estou sem acesso ao ERP e ninguém consegue emitir nota fiscal. Todos do comercial estão parados e o cliente espera até o meio-dia.", "gabarito": {"intencao": "acesso", "urgencia": "alta"}},
+    {"id": "C16", "texto": "Obrigado pelo atendimento de ontem, deu tudo certo!", "gabarito": {"intencao": "indefinida", "urgencia": "baixa"}}
+  ]
+}
