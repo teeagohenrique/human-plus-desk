@@ -8,7 +8,7 @@ Assistente de service desk em Python que ajuda a analista a priorizar chamados e
 - **Governança antes de IA:** CPF, CNPJ, e-mail, telefone e nomes próprios são mascarados antes de qualquer agente ver o texto ou de haver envio externo (`src/mascara.py`).
 - **Humano no controle:** urgência sem pré-seleção, `[colchetes]` obrigatórios no rascunho e decisão 100% humana na tela (`src/ui_marina.py`, `app.py`).
 - **Resiliência observável:** regras offline e Gemini atrás da mesma interface, fallback silencioso e origem da resposta mostrada por chamado (`src/llm.py`, `app.py`).
-- **Engenharia verificada:** 196 testes, incluindo `AppTest` para a navegação e para as telas Marina/Rafael (`tests/`), `ruff` e `compileall` limpos, CI verde em 12 execuções consecutivas (GitHub Actions, 2026-11-23).
+- **Engenharia verificada:** 199 testes, incluindo `AppTest` para a navegação e para as telas Marina/Rafael (`tests/`), `ruff` e `compileall` limpos, CI verde em 14 execuções consecutivas (GitHub Actions, 2026-11-23).
 
 ## O problema
 A analista abre dezenas de chamados sem saber qual é mais urgente e escreve respostas sob pressão, com risco de prometer prazos que não pode cumprir.
@@ -66,7 +66,18 @@ Para usar o Gemini, preencha `GEMINI_API_KEY` e `GEMINI_MODEL` no `.env` da raiz
 
 `[Fonte: saída de --provider gemini: "Origem: gemini=28 | regras=0 | fallback=8" e "Arquivo: chamados_validacao_independente.json | Provider: gemini | Intenção: 26/36 (72%) | Urgência: 29/36 (81%)", 23 de novembro de 2026]`
 
-Dos 36 chamados, 28 foram respondidos pelo Gemini e 8 caíram em fallback por regras. A urgência se manteve em 29/36. A medição anterior, feita antes do contador e antes do endurecimento de `validar_trechos` com fronteira de palavra (`src/llm.py:122-129`), registrou 31/36 (86%) em intenção e 29/36 (81%) em urgência. A queda de 86% para 72% em intenção coincide com esse endurecimento e com a entrada do fallback por exceção de API. Essa medição antiga **não separava os motivos**. `src/llm.py` agora registra cada fallback por causa (erro de API por status, trecho inválido, schema inválido, guardrail, marcadores faltantes, SDK ou cliente indisponíveis) e o `--avaliar` imprime a linha `Fallbacks: ...`. Classificar retroativamente aqueles 8 casos exige uma nova medição com a instrumentação ligada.
+Dos 36 chamados, 28 foram respondidos pelo Gemini e 8 caíram em fallback por regras. A urgência se manteve em 29/36. A medição anterior, feita antes do contador e antes do endurecimento de `validar_trechos` com fronteira de palavra (`src/llm.py:122-129`), registrou 31/36 (86%) em intenção e 29/36 (81%) em urgência. A queda de 86% para 72% em intenção coincide com esse endurecimento e com a entrada do fallback por exceção de API. Essa medição antiga **não separava os motivos**. `src/llm.py` agora registra cada fallback por causa (erro de API por status, trecho inválido, schema inválido, guardrail, marcadores faltantes, SDK ou cliente indisponíveis) e o `--avaliar` imprime a linha `Fallbacks: ...`. A nova medição com a instrumentação ligada está registrada abaixo e não reproduziu os 8 fallbacks; classificar retroativamente aqueles casos não é possível com os dados disponíveis.
+
+**Nova medição (instrumentação de motivos ligada, 23 de novembro de 2026):**
+
+| Métrica | Regras | Gemini | Diferença |
+|---|---|---|---|
+| Intenção | 8/36 (22%) | **32/36 (89%)** | +24 acertos |
+| Urgência | 20/36 (56%) | **27/36 (75%)** | +7 acertos |
+
+`[Fonte: saída de rodar_comparativo.ps1: "Origem: gemini=36 | regras=0 | fallback=0", "Fallbacks: nenhum" e "Arquivo: chamados_validacao_independente.json | Provider: gemini | Intenção: 32/36 (89%) | Urgência: 27/36 (75%)"]`
+
+Nesta execução não houve nenhum fallback — nem 429/503, nem `trecho_invalido`, `schema_invalido` ou qualquer outro motivo registrado. O placar anterior, com 28 acertos e 8 fallbacks em intenção, não foi reproduzido; a causa daqueles 8 casos segue sem classificação.
 
 Histórico: na amostra de 16 chamados, Regras 3/16 (19%) e 10/16 (62%) contra Gemini 13/16 (81%) e 12/16 (75%). A primeira tentativa de auditoria foi interrompida por `503 UNAVAILABLE` após as cinco tentativas de backoff, sem placar parcial; a segunda completou com o resultado acima.
 
@@ -74,7 +85,7 @@ Histórico: na amostra de 16 chamados, Regras 3/16 (19%) e 10/16 (62%) contra Ge
 
 ## Limites honestos desta versão
 - 36 chamados ainda é amostra pequena: o resultado é sinal forte, não número definitivo.
-- O placar de 86% / 81% ficou apenas como histórico: foi medido antes do contador e antes do endurecimento de `validar_trechos`. O placar auditado é 72% / 81%, com separação por origem.
+- O placar de 86% / 81% ficou apenas como histórico: foi medido antes do contador e antes do endurecimento de `validar_trechos`. O placar auditado foi 72% / 81%, com separação por origem; a nova medição com motivos instrumentados foi 89% / 75%, com `Fallbacks: nenhum`.
 - A baseline das regras foi revalidada após o endurecimento de `validar_trechos` e da regex de prazo em `src/triagem.py`: segue em `8/36 (22%) | 20/36 (56%)`.
 - A origem exibida no painel vem do valor por item devolvido por `triagem_com_origem`/`rascunho_com_origem`. O contador agregado `CONTADOR_TRIAGEM` serve apenas ao `--avaliar` da CLI e não mistura sessões do Streamlit.
 - Transcrição de áudio (`openai-whisper`) e orquestração (`crewai`) seguem fora do MVP, como planejado.
@@ -94,9 +105,9 @@ Histórico: na amostra de 16 chamados, Regras 3/16 (19%) e 10/16 (62%) contra Ge
 - `app.py` importa `I18N`, `get_text`, `render_dxc_theme`, `render_dxc_logo` e `render_language_selector`; não mantém cópia local de CSS, SVG ou traduções. `get_text` fica disponível para rótulos pontuais sem duplicar o dicionário.
 - O seletor PT/EN fica no topo da área principal; o tema Claro/Escuro fica na barra lateral (`tema_ui`). As chaves de widgets usadas pela agent API (`urg_ui_C15`, callbacks e filtros) não mudaram.
 - O módulo de tema não lê segredos: a configuração continua restrita a `GEMINI_API_KEY` e `GEMINI_MODEL` em `.env` (`src/config.py`). Use `.env.example` como referência; valores iguais a `sua_chave_aqui` são ignorados (`src/config.py:9,22`).
-- `tests/test_tema_dxc.py` cobre a paridade recursiva das 81 chaves (incluindo os 5 blocos aninhados), o fallback de tradução, o CSS dos dois modos, o SVG e a troca de idioma. Suíte total: **196 testes**.
+- `tests/test_tema_dxc.py` cobre a paridade recursiva das 81 chaves (incluindo os 5 blocos aninhados), o fallback de tradução, o CSS dos dois modos, o SVG e a troca de idioma. Suíte total: **199 testes**.
 
 ## Próximos passos
-1. Rodar nova medição no conjunto independente com a instrumentação de motivos já implementada, para classificar os 8 fallbacks da medição auditada antes de atribuir causa à queda de 86% para 72% em intenção.
+1. Manter os 8 fallbacks da medição anterior como histórico sem causa atribuída: a nova medição instrumentada registrou `Fallbacks: nenhum` e não os reproduziu, então não há base para atribuir a queda anterior a 429/503 ou à validação de trechos.
 2. Revalidar em amostra maior (50–100 chamados) antes de apresentar os números como definitivos à DXC.
 3. Se fizer ajuste de prompt para `indefinida`, medir em chamados novos — nunca reutilizar os 36 como critério de sucesso.
