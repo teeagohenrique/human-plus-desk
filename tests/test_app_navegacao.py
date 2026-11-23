@@ -60,3 +60,23 @@ def test_app_alterna_entre_marina_e_rafael(itens_regras):
         at.radio[0].set_value("marina").run()
         assert not at.exception
         assert TXT["title_marina"] in [titulo.value for titulo in at.title]
+
+
+def test_app_mantem_etapa_ativa_ao_sair_e_voltar_do_rafael(itens_regras):
+    chamado_id = itens_regras[0].id
+    chave = f"camada_{chamado_id}"
+    with _app(itens_regras) as (at, _):
+        at.run(timeout=10)
+        at.button(key="btn_kpi_fila").click().run()
+        at.button(key=f"go2_{chamado_id}").click().run()
+        assert at.session_state[chave] == "decisao"
+
+        # Com a fila aberta, o primeiro radio é o seletor de chamados; o de
+        # navegação vem por último na árvore do AppTest.
+        at.radio[-1].set_value("rafael").run()
+        at.radio[-1].set_value("marina").run()
+
+        assert not at.exception
+        assert at.session_state["estado_chamados"][chamado_id]["camada"] == "decisao"
+        assert at.session_state[chave] == "decisao"
+        assert at.segmented_control(key=chave).value == "decisao"

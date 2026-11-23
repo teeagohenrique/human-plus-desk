@@ -525,6 +525,9 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina") -> None:
             + "</div>",
             unsafe_allow_html=True,
         )
+        # O widget é desmontado ao trocar de tela e o Streamlit limpa a chave;
+        # restaura-se o valor persistido antes de renderizar o controle.
+        st.session_state.setdefault(f"camada_{item.id}", estado["camada"])
         escolhida = st.segmented_control(
             txt["steps_label"], options=list(etapas), format_func=lambda k: f"{etapas[k][1]} {etapas[k][0]}",
             label_visibility="collapsed", key=f"camada_{item.id}",
