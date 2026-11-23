@@ -1,7 +1,7 @@
 import pytest
 
-from src import autonomia as a
 from src import auditoria
+from src import autonomia as a
 
 CTX = a.contexto_de("acesso", "baixa")
 

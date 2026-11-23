@@ -1,0 +1,12 @@
+# Configuracao de lint. Fixar as regras evita depender do default da versao instalada.
+# Conjunto alinhado ao levantamento inicial (48 achados), sem ampliar escopo.
+target-version = "py314"
+
+[lint]
+select = ["E4", "E7", "E9", "F", "I", "SIM", "UP", "RUF046", "FURB"]
+
+[lint.per-file-ignores]
+# O adaptador LLM captura Exception de proposito: SDK ausente, falha de rede,
+# cota esgotada ou 503 persistente NUNCA podem quebrar a tela da analista.
+# O fallback deterministico e o comportamento esperado, nao um erro escondido.
+"src/llm.py" = ["BLE001"]

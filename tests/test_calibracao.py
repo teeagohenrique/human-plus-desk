@@ -1,8 +1,16 @@
 import pytest
 
 from src import auditoria
-from src.calibracao import (LIMIAR_LIVRE, MIN_ATIVAS, MIN_DECISOES, aprovar_reducao, avaliar,
-                            carregar_config, propor_reducao, reordenar)
+from src.calibracao import (
+    LIMIAR_LIVRE,
+    MIN_ATIVAS,
+    MIN_DECISOES,
+    aprovar_reducao,
+    avaliar,
+    carregar_config,
+    propor_reducao,
+    reordenar,
+)
 from src.percepcao import LEITURAS
 
 TODAS = list(LEITURAS)
@@ -51,7 +59,9 @@ def test_nunca_reduz_abaixo_do_minimo():
     props, _ = propor_reducao(lote(60, {}), c)
     assert props == []
     with pytest.raises(ValueError):
-        import tempfile, pathlib, json
+        import json
+        import pathlib
+        import tempfile
         d = pathlib.Path(tempfile.mkdtemp()) / "c.json"
         d.write_text(json.dumps(c), encoding="utf-8")
         aprovar_reducao(d, TODAS[0], "Rafael")

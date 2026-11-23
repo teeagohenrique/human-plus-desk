@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from src.percepcao import LEITURAS, Historico, Palpite, perceber
-from src.triagem import Motivo, triar
+from src.triagem import triar
 
 CARLOS = ("Bom dia, aqui é o Carlos. O sistema de faturamento travou pela terceira vez "
           "essa semana e eu preciso fechar o mês até o meio-dia.")

@@ -9,6 +9,7 @@ Princípios:
 """
 import re
 from typing import Literal
+
 from pydantic import BaseModel, model_validator
 
 Intencao = Literal["falha_sistema", "acesso", "reclamacao", "solicitacao", "duvida", "indefinida"]
@@ -29,18 +30,18 @@ SINAIS_URGENCIA: dict[str, tuple[re.Pattern, int]] = {
         r"até\s+(?:o\s+)?meio[- ]dia|até\s+o\s+fim\s+do\s+dia"
         r"|\b(?:até\s+(?:as\s+|às\s+)?|às\s+|as\s+|das\s+)\d{1,2}\s?(?:h|:)\d{0,2}"
         r"|até\s+(?:amanhã|segunda|terça|quarta|quinta|sexta)"
-        r"|(?:até|ainda|para|pra)\s+hoje|hoje\s+ainda|urgente|urgência", re.I), 2),
+        r"|(?:até|ainda|para|pra)\s+hoje|hoje\s+ainda|urgente|urgência", re.IGNORECASE), 2),
     "recorrencia": (re.compile(
         r"(?:segunda|terceira|quarta|quinta)\s+vez|de\s+novo|novamente|outra\s+vez"
-        r"|mais\s+uma\s+vez|toda\s+semana|todo\s+dia", re.I), 1),
+        r"|mais\s+uma\s+vez|toda\s+semana|todo\s+dia", re.IGNORECASE), 1),
     "processo_critico": (re.compile(
-        r"fechamento|fechar\s+o\s+mês|faturamento|folha\s+de\s+pagamento|nota\s+fiscal|auditoria", re.I), 1),
+        r"fechamento|fechar\s+o\s+mês|faturamento|folha\s+de\s+pagamento|nota\s+fiscal|auditoria", re.IGNORECASE), 1),
     "muitos_afetados": (re.compile(
         r"\btod[oa]s?\s+(?:a|o|as|os)\s+(?:equipe|time|setor|área|departamento)|\btodos\b(?!\s+os\s+dias)"
-        r"|vários\s+usuários|todo\s+mundo", re.I), 2),
+        r"|vários\s+usuários|todo\s+mundo", re.IGNORECASE), 2),
     "bloqueio": (re.compile(
-        r"sem\s+conseguir\s+trabalhar|não\s+consigo\s+trabalhar|sem\s+poder\s+trabalhar|parad[oa]s?\b", re.I), 1),
-    "risco_saida": (re.compile(r"cancelar|trocar\s+de\s+fornecedor|desistir", re.I), 1),
+        r"sem\s+conseguir\s+trabalhar|não\s+consigo\s+trabalhar|sem\s+poder\s+trabalhar|parad[oa]s?\b", re.IGNORECASE), 1),
+    "risco_saida": (re.compile(r"cancelar|trocar\s+de\s+fornecedor|desistir", re.IGNORECASE), 1),
 }
 
 LIMIAR_ALTA = 3
@@ -73,7 +74,7 @@ class Triagem(BaseModel):
 def _achar_palavras(texto: str, palavras: list[str]) -> list[Motivo]:
     achados = []
     for p in palavras:
-        m = re.search(rf"\b{re.escape(p)}", texto, re.I)
+        m = re.search(rf"\b{re.escape(p)}", texto, re.IGNORECASE)
         if m:
             achados.append(Motivo(sinal="palavra_chave", trecho=m.group(0)))
     return achados

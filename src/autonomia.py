@@ -14,7 +14,7 @@ estar inflada por quem não olha. Isso enfraquece a evidência.
 """
 import json
 import zlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from math import comb
 from pathlib import Path
 
@@ -71,7 +71,7 @@ def _salvar(caminho: Path, cfg: dict) -> None:
 
 
 def _agora() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _eventos_humanos(eventos: list[dict]) -> list[dict]:
@@ -124,7 +124,7 @@ def aprovar_autonomia(caminho: Path, contexto: str, gestor: str, eventos: list[d
     if acao in ACOES_PROIBIDAS or acao != ACAO_PERMITIDA:
         raise ValueError(f"ação não pode ser autônoma: {acao}")
     cfg = carregar_config(caminho)
-    linha = next((l for l in status(eventos, cfg) if l["contexto"] == contexto), None)
+    linha = next((item for item in status(eventos, cfg) if item["contexto"] == contexto), None)
     prova = linha is not None and linha["limite_erro"] <= ERRO_MAX
     if not prova or linha["estado"] == "autonomo":
         raise ValueError("contexto não prova erro <= 1% (ou já é autônomo): autonomia negada")

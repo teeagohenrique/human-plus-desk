@@ -14,8 +14,14 @@ from pathlib import Path
 
 from src import auditoria
 from src.config import carregar_env
-from src.llm import (obter_contador_fallback, obter_contador_triagem, rascunho_com_llm,
-                     resolver_provider, triagem_com_llm, zerar_contadores)
+from src.llm import (
+    obter_contador_fallback,
+    obter_contador_triagem,
+    rascunho_com_llm,
+    resolver_provider,
+    triagem_com_llm,
+    zerar_contadores,
+)
 from src.mascara import mascarar
 from src.percepcao import perceber
 

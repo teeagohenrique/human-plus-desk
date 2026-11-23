@@ -3,7 +3,7 @@
 Só texto já mascarado entra aqui. Cada linha é um evento; nada é apagado.
 """
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -13,7 +13,7 @@ Decisao = Literal["pendente", "aprovou", "editou", "rejeitou"]
 def registrar(caminho: Path, chamado_id: str, agente: str, saida: dict,
               decisao: Decisao = "pendente", texto_final: str | None = None) -> None:
     evento = {
-        "quando": datetime.now(timezone.utc).isoformat(),
+        "quando": datetime.now(UTC).isoformat(),
         "chamado_id": chamado_id,
         "agente": agente,
         "saida": saida,

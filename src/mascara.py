@@ -11,6 +11,7 @@ Limites conhecidos (v2 — heurística local offline):
   mascarar demais a vazar).
 """
 import re
+
 from pydantic import BaseModel
 
 # A ordem importa: CNPJ (14 dígitos) antes de CPF (11), e CPF antes de telefone.

@@ -2,10 +2,19 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.llm import (obter_contador_fallback, obter_contador_triagem, rascunho_com_llm,
-                     rascunho_com_origem, resolver_provider, triagem_com_llm, triagem_com_origem,
-                     validar_trechos, validar_triagem_trechos, zerar_contador_triagem,
-                     zerar_contadores)
+from src.llm import (
+    obter_contador_fallback,
+    obter_contador_triagem,
+    rascunho_com_llm,
+    rascunho_com_origem,
+    resolver_provider,
+    triagem_com_llm,
+    triagem_com_origem,
+    validar_trechos,
+    validar_triagem_trechos,
+    zerar_contador_triagem,
+    zerar_contadores,
+)
 from src.mascara import mascarar
 from src.percepcao import perceber
 from src.triagem import Triagem, triar
@@ -278,7 +287,6 @@ def test_contador_registra_fallback_por_trecho_invalido(monkeypatch):
 
 
 def test_contador_registra_triagem_por_regras(monkeypatch):
-    from src import llm
 
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     zerar_contador_triagem()

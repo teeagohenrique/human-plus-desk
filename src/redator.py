@@ -10,7 +10,9 @@ Guardrail (função `validar_rascunho`): bloqueia
   4. dado pessoal sem máscara.
 """
 import re
+
 from pydantic import BaseModel
+
 from src.mascara import mascarar
 from src.triagem import Triagem
 
@@ -23,13 +25,13 @@ _PROMESSA = re.compile(
     r"[^.!?]{0,40}\b(?:até|em|às|as|hoje|amanhã)\b"
     r"|\b(?:garanto|prometo|sem falta|com certeza)\b"
     r"|\bdaqui\s+a\b|\bem\s+\d+\s*(?:min|minutos|hora|horas)\b",
-    re.I,
+    re.IGNORECASE,
 )
 _ROTULO = re.compile(
     r"\b(?:você|vc|o cliente|ele|ela)\s+(?:é|está|foi|estava)\s+(?:muito\s+|bem\s+)?"
     r"(?:nervos|ansios|agressiv|irritad|estressad|rud|impacient|grosse|furios|raivos)\w*"
     r"|\bpessoa\s+(?:nervos|ansios|agressiv|irritad|estressad)\w*",
-    re.I,
+    re.IGNORECASE,
 )
 
 PERGUNTAS = {

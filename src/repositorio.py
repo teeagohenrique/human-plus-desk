@@ -14,7 +14,7 @@ O arquivo `human_desk.db` é criado na raiz do projeto na primeira execução.
 import json
 import sqlite3
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from src.mascara import mascarar
@@ -37,7 +37,7 @@ DECISOES = ("aprovou", "editou", "rejeitou")
 
 def _agora() -> str:
     """Timestamp ISO 8601 em UTC, mesmo formato de `src/auditoria.py`."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def conectar(caminho: Path = DB_PATH) -> sqlite3.Connection:
@@ -57,41 +57,40 @@ def init_db(caminho: Path = DB_PATH, concluidos: set[str] | None = None) -> None
     existir. Só é aplicado no seed: depois disso o banco é a fonte da verdade.
     """
     concluidos = set(concluidos or ())
-    with closing(conectar(caminho)) as conn:
-        with conn:
-            conn.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS tickets (
-                    id                 TEXT PRIMARY KEY,
-                    dataset            TEXT NOT NULL,
-                    texto_mascarado    TEXT NOT NULL,
-                    urgencia_sugerida  TEXT,
-                    pontuacao_sugerida INTEGER,
-                    urgencia_confirmada TEXT,
-                    pontuacao_analista  INTEGER,
-                    status             TEXT NOT NULL DEFAULT 'pendente',
-                    resposta_final     TEXT,
-                    resolvido_por      TEXT,
-                    resolvido_em       TEXT,
-                    criado_em          TEXT NOT NULL
-                );
+    with closing(conectar(caminho)) as conn, conn:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS tickets (
+                id                 TEXT PRIMARY KEY,
+                dataset            TEXT NOT NULL,
+                texto_mascarado    TEXT NOT NULL,
+                urgencia_sugerida  TEXT,
+                pontuacao_sugerida INTEGER,
+                urgencia_confirmada TEXT,
+                pontuacao_analista  INTEGER,
+                status             TEXT NOT NULL DEFAULT 'pendente',
+                resposta_final     TEXT,
+                resolvido_por      TEXT,
+                resolvido_em       TEXT,
+                criado_em          TEXT NOT NULL
+            );
 
-                CREATE TABLE IF NOT EXISTS eventos (
-                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                    chamado_id TEXT NOT NULL REFERENCES tickets(id),
-                    acao       TEXT NOT NULL,
-                    agente     TEXT NOT NULL,
-                    criado_em  TEXT NOT NULL,
-                    detalhes   TEXT
-                );
+            CREATE TABLE IF NOT EXISTS eventos (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                chamado_id TEXT NOT NULL REFERENCES tickets(id),
+                acao       TEXT NOT NULL,
+                agente     TEXT NOT NULL,
+                criado_em  TEXT NOT NULL,
+                detalhes   TEXT
+            );
 
-                CREATE INDEX IF NOT EXISTS idx_eventos_chamado ON eventos(chamado_id);
-                CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status, dataset);
-                """
-            )
-            total = conn.execute("SELECT COUNT(*) FROM tickets").fetchone()[0]
-            if total == 0:
-                _semear(conn, concluidos)
+            CREATE INDEX IF NOT EXISTS idx_eventos_chamado ON eventos(chamado_id);
+            CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status, dataset);
+            """
+        )
+        total = conn.execute("SELECT COUNT(*) FROM tickets").fetchone()[0]
+        if total == 0:
+            _semear(conn, concluidos)
 
 
 def _semear(conn: sqlite3.Connection, concluidos: set[str]) -> None:
@@ -129,24 +128,23 @@ def registrar_urgencia(chamado_id: str, urgencia: str, agente: str,
     """Grava a urgência escolhida na hora, com pontuação, agente e timestamp."""
     if urgencia not in URGENCIAS:
         raise ValueError(f"urgência inválida: {urgencia}")
-    with closing(conectar(caminho)) as conn:
-        with conn:
-            anterior = conn.execute(
-                "SELECT urgencia_confirmada FROM tickets WHERE id = ?", (chamado_id,)
-            ).fetchone()
-            if anterior is None:
-                raise KeyError(f"chamado não encontrado: {chamado_id}")
-            conn.execute(
-                """UPDATE tickets
+    with closing(conectar(caminho)) as conn, conn:
+        anterior = conn.execute(
+            "SELECT urgencia_confirmada FROM tickets WHERE id = ?", (chamado_id,)
+        ).fetchone()
+        if anterior is None:
+            raise KeyError(f"chamado não encontrado: {chamado_id}")
+        conn.execute(
+            """UPDATE tickets
                       SET urgencia_confirmada = ?, pontuacao_analista = ?
                     WHERE id = ?""",
-                (urgencia, PONTOS_ANALISTA[urgencia], chamado_id),
-            )
-            _inserir_evento(conn, chamado_id, "urgencia_alterada", agente, {
-                "urgencia_anterior": anterior["urgencia_confirmada"],
-                "urgencia_nova": urgencia,
-                "pontos_analista": PONTOS_ANALISTA[urgencia],
-            })
+            (urgencia, PONTOS_ANALISTA[urgencia], chamado_id),
+        )
+        _inserir_evento(conn, chamado_id, "urgencia_alterada", agente, {
+            "urgencia_anterior": anterior["urgencia_confirmada"],
+            "urgencia_nova": urgencia,
+            "pontos_analista": PONTOS_ANALISTA[urgencia],
+        })
 
 
 def registrar_decisao(chamado_id: str, decisao: str, texto_final: str | None,
@@ -155,43 +153,41 @@ def registrar_decisao(chamado_id: str, decisao: str, texto_final: str | None,
     """Fecha o chamado na hora da aprovação/edição/rejeição."""
     if decisao not in DECISOES:
         raise ValueError(f"decisão inválida: {decisao}")
-    with closing(conectar(caminho)) as conn:
-        with conn:
-            existe = conn.execute(
-                "SELECT 1 FROM tickets WHERE id = ?", (chamado_id,)
-            ).fetchone()
-            if existe is None:
-                raise KeyError(f"chamado não encontrado: {chamado_id}")
-            agora = _agora()
-            conn.execute(
-                """UPDATE tickets
+    with closing(conectar(caminho)) as conn, conn:
+        existe = conn.execute(
+            "SELECT 1 FROM tickets WHERE id = ?", (chamado_id,)
+        ).fetchone()
+        if existe is None:
+            raise KeyError(f"chamado não encontrado: {chamado_id}")
+        agora = _agora()
+        conn.execute(
+            """UPDATE tickets
                       SET status = 'concluido', resposta_final = ?,
                           resolvido_por = ?, resolvido_em = ?
                     WHERE id = ?""",
-                (texto_final, agente, agora, chamado_id),
-            )
-            _inserir_evento(conn, chamado_id, "decisao", agente, {
-                "decisao": decisao,
-                "tem_resposta": bool(texto_final),
-                **(detalhes or {}),
-            })
+            (texto_final, agente, agora, chamado_id),
+        )
+        _inserir_evento(conn, chamado_id, "decisao", agente, {
+            "decisao": decisao,
+            "tem_resposta": bool(texto_final),
+            **(detalhes or {}),
+        })
 
 
 def reabrir(chamado_id: str, agente: str, caminho: Path = DB_PATH) -> None:
     """Reabre sem apagar nada: o histórico de resolução permanece no ticket."""
-    with closing(conectar(caminho)) as conn:
-        with conn:
-            atual = conn.execute(
-                "SELECT status FROM tickets WHERE id = ?", (chamado_id,)
-            ).fetchone()
-            if atual is None:
-                raise KeyError(f"chamado não encontrado: {chamado_id}")
-            conn.execute(
-                "UPDATE tickets SET status = 'pendente' WHERE id = ?", (chamado_id,)
-            )
-            _inserir_evento(conn, chamado_id, "reabriu", agente, {
-                "status_anterior": atual["status"],
-            })
+    with closing(conectar(caminho)) as conn, conn:
+        atual = conn.execute(
+            "SELECT status FROM tickets WHERE id = ?", (chamado_id,)
+        ).fetchone()
+        if atual is None:
+            raise KeyError(f"chamado não encontrado: {chamado_id}")
+        conn.execute(
+            "UPDATE tickets SET status = 'pendente' WHERE id = ?", (chamado_id,)
+        )
+        _inserir_evento(conn, chamado_id, "reabriu", agente, {
+            "status_anterior": atual["status"],
+        })
 
 
 def estado(dataset: str | None = None, caminho: Path = DB_PATH) -> dict[str, dict]:

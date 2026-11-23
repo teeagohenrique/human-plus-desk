@@ -6,6 +6,11 @@ venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.ruff_cache/
+
+# Cobertura de testes (artefato local)
+.coverage
+htmlcov/
 
 # Segredos (nunca versionar chaves de API)
 .env

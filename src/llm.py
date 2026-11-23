@@ -24,7 +24,13 @@ import re
 import time
 from typing import Any
 
-from src.redator import PEND_PRAZO, PEND_PROVISORIA, Rascunho, gerar_rascunho, validar_rascunho
+from src.redator import (
+    PEND_PRAZO,
+    PEND_PROVISORIA,
+    Rascunho,
+    gerar_rascunho,
+    validar_rascunho,
+)
 from src.triagem import Triagem, triar
 
 PROVIDERS = ("regras", "gemini")
