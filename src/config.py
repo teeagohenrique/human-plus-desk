@@ -4,6 +4,7 @@ Este módulo apenas define a função; quem decide chamá-la é o entry point.
 Assim a suíte de testes, que importa os módulos de domínio, não carrega
 variáveis de um .env real e continua determinística e offline.
 """
+import os
 from pathlib import Path
 
 PLACEHOLDER_CHAVE = "sua_chave_aqui"
@@ -21,6 +22,4 @@ def carregar_env(caminho: Path) -> None:
         valor = valor.strip("\"'")
         if not valor or valor == PLACEHOLDER_CHAVE:
             continue
-        import os
-
         os.environ.setdefault(chave, valor)
