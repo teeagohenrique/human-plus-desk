@@ -9,8 +9,8 @@ Regras fixas (decisão do projeto, não configurável):
 
 Limite superior de erro: Clopper-Pearson unilateral (cálculo estatístico padrão; os números
 de corte vêm da conversa com a pessoa dona do projeto, não de pesquisa externa).
-Aviso: a urgência já vem marcada com a sugestão da IA, então a concordância humana pode
-estar inflada por quem não olha. Isso enfraquece a evidência.
+Aviso: a urgência NÃO vem pré-selecionada na interface — a analista escolhe
+explicitamente. Eventos com `urgencia_automatica` não entram como evidência.
 """
 import json
 import zlib
