@@ -5,7 +5,9 @@ Regras preservadas do pipeline auditado:
 
 - **LGPD:** só texto já mascarado entra no banco (a máscara roda no seed).
 - **Append-only:** reabrir nunca apaga `resolvido_por`, `resolvido_em` nem
-  `resposta_final`; a ação vira um evento novo, com agente e timestamp UTC.
+  `resposta_final`. Uma nova decisão substitui o estado vigente do ticket, mas
+  o evento `decisao` guarda os valores anteriores (resposta, resolvedor,
+  timestamp e status) para que a troca não apague a trilha.
 - **Transação:** cada ação (urgência, decisão, reabertura) atualiza o ticket e
   insere o evento na mesma transação.
 
@@ -150,14 +152,19 @@ def registrar_urgencia(chamado_id: str, urgencia: str, agente: str,
 def registrar_decisao(chamado_id: str, decisao: str, texto_final: str | None,
                       agente: str, detalhes: dict | None = None,
                       caminho: Path = DB_PATH) -> None:
-    """Fecha o chamado na hora da aprovação/edição/rejeição."""
+    """Fecha o chamado e registra no evento o estado que ele substituiu.
+
+    O ticket passa a refletir a nova decisão; os valores anteriores ficam no
+    detalhe do evento, inclusive na primeira decisão (todos vazios).
+    """
     if decisao not in DECISOES:
         raise ValueError(f"decisão inválida: {decisao}")
     with closing(conectar(caminho)) as conn, conn:
-        existe = conn.execute(
-            "SELECT 1 FROM tickets WHERE id = ?", (chamado_id,)
+        anterior = conn.execute(
+            "SELECT status, resposta_final, resolvido_por, resolvido_em "
+            "FROM tickets WHERE id = ?", (chamado_id,)
         ).fetchone()
-        if existe is None:
+        if anterior is None:
             raise KeyError(f"chamado não encontrado: {chamado_id}")
         agora = _agora()
         conn.execute(
@@ -171,6 +178,11 @@ def registrar_decisao(chamado_id: str, decisao: str, texto_final: str | None,
             "decisao": decisao,
             "tem_resposta": bool(texto_final),
             **(detalhes or {}),
+            "status_anterior": anterior["status"],
+            "resposta_anterior": anterior["resposta_final"],
+            "resolvido_por_anterior": anterior["resolvido_por"],
+            "resolvido_em_anterior": anterior["resolvido_em"],
+            "tem_resposta_anterior": bool(anterior["resposta_final"]),
         })
 
 

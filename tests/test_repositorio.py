@@ -99,3 +99,39 @@ def test_nova_decisao_reconquista_chamado_reaberto(db):
     assert [e["acao"] for e in repositorio.eventos(db, "C03")] == [
         "decisao", "reabriu", "decisao",
     ]
+
+
+def test_nova_decisao_guarda_resposta_e_resolvedor_anteriores_no_evento(db):
+    repositorio.registrar_decisao("C04", "editou", "Resposta original", "Marina", caminho=db)
+    repositorio.reabrir("C04", "Rafael", caminho=db)
+    repositorio.registrar_decisao(
+        "C04", "aprovou", "Resposta revisada", "Rafael",
+        detalhes={"origem_triagem": "gemini", "resposta_anterior": "forjada"}, caminho=db,
+    )
+
+    ev = repositorio.eventos(db, "C04")[-1]
+    det = ev["detalhes"]
+    assert ev["acao"] == "decisao"
+    assert det["decisao"] == "aprovou"
+    assert det["origem_triagem"] == "gemini"
+    # Os campos de rastreabilidade são autorais: detalhes do chamador não os sobrescrevem.
+    assert det["resposta_anterior"] == "Resposta original"
+    assert det["resolvido_por_anterior"] == "Marina"
+    assert det["resolvido_em_anterior"]
+    assert det["status_anterior"] == "pendente"
+    assert det["tem_resposta_anterior"] is True
+
+    atual = repositorio.estado(caminho=db)["C04"]
+    assert atual["resposta_final"] == "Resposta revisada"
+    assert atual["resolvido_por"] == "Rafael"
+
+
+def test_primeira_decisao_registra_ausencia_de_resposta_anterior(db):
+    repositorio.registrar_decisao("C05", "rejeitou", None, "Marina", caminho=db)
+
+    det = repositorio.eventos(db, "C05")[-1]["detalhes"]
+    assert det["resposta_anterior"] is None
+    assert det["resolvido_por_anterior"] is None
+    assert det["resolvido_em_anterior"] is None
+    assert det["status_anterior"] == "pendente"
+    assert det["tem_resposta_anterior"] is False
