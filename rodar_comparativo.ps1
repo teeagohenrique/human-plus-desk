@@ -13,4 +13,7 @@ if (-not (Test-Path (Join-Path $PSScriptRoot '.env'))) {
 Write-Output "Modelo e chave: lidos de .env"
 
 & .\.venv\Scripts\python.exe -m src.main --avaliar data/chamados_validacao_independente.json --provider regras
+if ($LASTEXITCODE -ne 0) { throw "Falha na avaliacao com regras (exit $LASTEXITCODE)" }
+
 & .\.venv\Scripts\python.exe -m src.main --avaliar data/chamados_validacao_independente.json --provider gemini
+if ($LASTEXITCODE -ne 0) { throw "Falha na avaliacao com Gemini (exit $LASTEXITCODE)" }

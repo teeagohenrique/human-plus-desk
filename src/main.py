@@ -3,6 +3,7 @@
 A IA só SUGERE: toda decisão fica como "pendente" até a analista agir no painel.
 
 Uso:  python -m src.main                                          (demonstração, padrão regras)
+      python src/main.py                                          (execução direta também funciona)
       python -m src.main --avaliar                                (avalia gabarito rascunho)
       python -m src.main --avaliar caminho.json --provider regras (avalia com provedor explícito)
 
@@ -10,7 +11,13 @@ GEMINI_API_KEY e GEMINI_MODEL podem vir do .env na raiz (ignorado pelo git).
 """
 import argparse
 import json
+import sys
 from pathlib import Path
+
+# Execução direta (`python src/main.py`) coloca `src/` no sys.path, não a raiz.
+# Em import normal (__package__ == "src") este bloco não roda.
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src import auditoria
 from src.config import carregar_env

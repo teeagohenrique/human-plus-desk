@@ -1,5 +1,7 @@
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 from src import main
@@ -141,3 +143,15 @@ def test_parse_args_avaliar_e_provider():
     explicito = main._parse_args(["--avaliar", "outro.json", "--provider", "gemini"])
     assert explicito.avaliar == "outro.json"
     assert explicito.provider == "gemini"
+
+
+def test_execucao_direta_do_arquivo_funciona():
+    """`python src/main.py` também deve funcionar, não só `python -m src.main`."""
+    raiz = Path(main.__file__).resolve().parent.parent
+    resultado = subprocess.run(
+        [sys.executable, str(raiz / "src" / "main.py"), "--help"],
+        cwd=raiz, capture_output=True, text=True, timeout=30,
+    )
+
+    assert resultado.returncode == 0, resultado.stderr
+    assert "usage:" in resultado.stdout.lower()
