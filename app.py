@@ -11,6 +11,7 @@ import streamlit as st
 
 from src import auditoria, repositorio
 from src.config import carregar_env
+from src.llm import usar_contadores
 from src.painel import ids_decididos
 from src.tema_dxc import (
     I18N,
@@ -69,7 +70,9 @@ with st.sidebar:
     st.divider()
     st.caption(txt["footer"])
 
-if pagina == "marina":
-    tela_marina(provider, txt, agente="Marina")
-else:
-    tela_rafael(provider, escuro=modo_escuro, txt=txt)
+# Cada rerun ganha contadores próprios: a tela nunca suja as métricas da CLI.
+with usar_contadores():
+    if pagina == "marina":
+        tela_marina(provider, txt, agente="Marina")
+    else:
+        tela_rafael(provider, escuro=modo_escuro, txt=txt)

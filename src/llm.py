@@ -16,12 +16,20 @@ Princípios:
   cliente indisponível, erro de API por status, schema inválido, trecho inválido,
   guardrail e marcadores faltantes). Assim a medição distingue falha de API de
   falha de validação sem depender de log externo.
+- O espaçamento entre chamadas é global e sincronizado: a cota é por chave/modelo,
+  compartilhada por todas as sessões. `usar_contadores()` isola apenas as métricas,
+  que são observacionais e não podem misturar sessões ou medições.
 - `triagem_com_origem` e `rascunho_com_origem` devolvem `(objeto, origem)` para
   que o painel mostre o selo de procedência em cada chamado.
 """
 import os
 import re
+import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from typing import Any
 
 from src.redator import (
@@ -61,49 +69,98 @@ MOTIVOS_FALLBACK = (
 )
 CONTADOR_FALLBACK = {motivo: 0 for motivo in MOTIVOS_FALLBACK}
 
+# A cota da API é por chave/modelo, não por sessão: o relógio do pacer continua
+# global, mas agora com reserva atômica de slot e espera fora do lock.
+_TRAVA_PAUSA = threading.Lock()
+
+
+@dataclass
+class Contadores:
+    """Contadores de uma sessão ou de uma medição isolada."""
+
+    triagem: dict[str, int] = field(
+        default_factory=lambda: {"gemini": 0, "regras": 0, "fallback": 0}
+    )
+    fallback: dict[str, int] = field(
+        default_factory=lambda: {motivo: 0 for motivo in MOTIVOS_FALLBACK}
+    )
+
+
+_CONTEXT_CONTADORES: ContextVar[Contadores | None] = ContextVar(
+    "contadores_llm", default=None
+)
+
+
+@contextmanager
+def usar_contadores() -> Iterator[Contadores]:
+    """Isola origem e motivos de fallback no contexto atual.
+
+    Fora dele, as funções de contagem continuam usando as variáveis globais de
+    sempre — nenhuma assinatura pública mudou.
+    """
+    novos = Contadores()
+    token = _CONTEXT_CONTADORES.set(novos)
+    try:
+        yield novos
+    finally:
+        _CONTEXT_CONTADORES.reset(token)
+
+
+def _contadores() -> tuple[dict[str, int], dict[str, int]]:
+    ativo = _CONTEXT_CONTADORES.get()
+    if ativo is not None:
+        return ativo.triagem, ativo.fallback
+    return CONTADOR_TRIAGEM, CONTADOR_FALLBACK
+
 
 def zerar_contador_triagem() -> None:
     """Zera as categorias antes de uma medição."""
-    for chave in CONTADOR_TRIAGEM:
-        CONTADOR_TRIAGEM[chave] = 0
+    triagem, _ = _contadores()
+    for chave in triagem:
+        triagem[chave] = 0
 
 
 def zerar_contadores() -> None:
     """Zera origem e motivos antes de uma medição completa."""
-    zerar_contador_triagem()
-    for motivo in CONTADOR_FALLBACK:
-        CONTADOR_FALLBACK[motivo] = 0
+    triagem, fallback = _contadores()
+    for chave in triagem:
+        triagem[chave] = 0
+    for chave in fallback:
+        fallback[chave] = 0
 
 
 def obter_contador_triagem() -> dict[str, int]:
     """Devolve uma cópia, para que chamadores não alterem o contador."""
-    return dict(CONTADOR_TRIAGEM)
+    return dict(_contadores()[0])
 
 
 def obter_contador_fallback() -> dict[str, int]:
     """Devolve uma cópia dos motivos, sem expor o contador interno."""
-    return dict(CONTADOR_FALLBACK)
+    return dict(_contadores()[1])
 
 
 def _registrar_triagem(categoria: str) -> None:
-    CONTADOR_TRIAGEM[categoria] += 1
+    _contadores()[0][categoria] += 1
 
 
 def _registrar_fallback(motivo: str) -> None:
-    if motivo not in CONTADOR_FALLBACK:
+    contador = _contadores()[1]
+    if motivo not in contador:
         raise ValueError(f"Motivo de fallback desconhecido: {motivo!r}")
-    CONTADOR_FALLBACK[motivo] += 1
+    contador[motivo] += 1
 
 
 def _pausar_entre_chamadas() -> None:
-    """Mantém distância mínima entre chamadas para não estourar o limite por minuto."""
+    """Reserva o próximo slot do adaptador Gemini sem estourar a cota por minuto."""
     global _ULTIMA_CHAMADA_GEMINI
-    agora = time.monotonic()
-    if _ULTIMA_CHAMADA_GEMINI is not None:
-        restante = INTERVALO_MINIMO_GEMINI - (agora - _ULTIMA_CHAMADA_GEMINI)
-        if restante > 0:
-            time.sleep(restante)
-    _ULTIMA_CHAMADA_GEMINI = time.monotonic()
+    with _TRAVA_PAUSA:
+        agora = time.monotonic()
+        anterior = _ULTIMA_CHAMADA_GEMINI
+        inicio = max(agora, anterior + INTERVALO_MINIMO_GEMINI) if anterior is not None else agora
+        _ULTIMA_CHAMADA_GEMINI = inicio
+    espera = inicio - time.monotonic()
+    if espera > 0:
+        time.sleep(espera)
 
 
 def _status_erro(exc: Exception) -> int | None:

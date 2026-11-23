@@ -20,6 +20,7 @@ from src.llm import (
     rascunho_com_llm,
     resolver_provider,
     triagem_com_llm,
+    usar_contadores,
     zerar_contadores,
 )
 from src.mascara import mascarar
@@ -79,20 +80,21 @@ def demonstrar(provider: str | None = None) -> None:
 
 def avaliar(caminho: Path = DADOS, provider: str | None = None) -> dict:
     ativo = resolver_provider(provider)
-    zerar_contadores()
-    acertos_i = acertos_u = 0
-    chamados = carregar(caminho)
-    for c in chamados:
-        t = triagem_com_llm(mascarar(c["texto"]).texto, provider=provider)
-        g = c["gabarito"]
-        ok_i, ok_u = t.intencao == g["intencao"], t.urgencia == g["urgencia"]
-        acertos_i += ok_i
-        acertos_u += ok_u
-        if not (ok_i and ok_u):
-            print(f'{c["id"]}: previsto {t.intencao}/{t.urgencia} | gabarito {g["intencao"]}/{g["urgencia"]}')
-    n = len(chamados)
-    origem = obter_contador_triagem()
-    motivos = obter_contador_fallback()
+    with usar_contadores():
+        zerar_contadores()
+        acertos_i = acertos_u = 0
+        chamados = carregar(caminho)
+        for c in chamados:
+            t = triagem_com_llm(mascarar(c["texto"]).texto, provider=provider)
+            g = c["gabarito"]
+            ok_i, ok_u = t.intencao == g["intencao"], t.urgencia == g["urgencia"]
+            acertos_i += ok_i
+            acertos_u += ok_u
+            if not (ok_i and ok_u):
+                print(f'{c["id"]}: previsto {t.intencao}/{t.urgencia} | gabarito {g["intencao"]}/{g["urgencia"]}')
+        n = len(chamados)
+        origem = obter_contador_triagem()
+        motivos = obter_contador_fallback()
     print(f"Origem: gemini={origem['gemini']} | regras={origem['regras']} | fallback={origem['fallback']}")
     detalhes = ", ".join(f"{motivo}={qtd}" for motivo, qtd in motivos.items() if qtd) or "nenhum"
     print(f"Fallbacks: {detalhes}")

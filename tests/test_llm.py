@@ -481,10 +481,67 @@ def test_avaliar_expoe_motivos_dos_fallbacks(monkeypatch):
         vistos.append(1)
         if len(vistos) == 1:
             llm._registrar_fallback("erro_api_503")
-            llm.CONTADOR_TRIAGEM["fallback"] += 1
+            llm._registrar_triagem("fallback")
         return original(texto, provider=provider)
 
     monkeypatch.setattr(main, "triagem_com_llm", triagem_com_um_fallback)
     res = main.avaliar(main.DADOS)
     assert res["fallback_motivos"]["erro_api_503"] == 1
     assert res["origem"]["fallback"] == 1
+
+
+def test_pausa_reserva_slots_distintos_sem_espera_duplicada(monkeypatch):
+    from src import llm
+
+    monkeypatch.setattr(llm, "_ULTIMA_CHAMADA_GEMINI", None)
+    relogio = [0.0]
+    dormidas = []
+
+    def dormir(segundos):
+        dormidas.append(segundos)
+        relogio[0] += segundos
+
+    monkeypatch.setattr(llm.time, "monotonic", lambda: relogio[0])
+    monkeypatch.setattr(llm.time, "sleep", dormir)
+
+    llm._pausar_entre_chamadas()
+    llm._pausar_entre_chamadas()
+    llm._pausar_entre_chamadas()
+
+    assert dormidas == [pytest.approx(llm.INTERVALO_MINIMO_GEMINI)] * 2
+
+
+def test_usar_contadores_isola_metricas_e_respeita_aninhamento(monkeypatch):
+    from src import llm
+
+    monkeypatch.setattr(llm, "CONTADOR_TRIAGEM", {"gemini": 0, "regras": 0, "fallback": 0})
+    monkeypatch.setattr(llm, "CONTADOR_FALLBACK", {m: 0 for m in llm.MOTIVOS_FALLBACK})
+
+    with llm.usar_contadores() as contexto:
+        llm._registrar_triagem("gemini")
+        llm._registrar_fallback("erro_api_503")
+        assert obter_contador_triagem()["gemini"] == 1
+
+        with llm.usar_contadores():
+            zerar_contadores()
+            assert not any(obter_contador_triagem().values())
+
+        assert obter_contador_triagem()["gemini"] == 1
+        assert obter_contador_fallback()["erro_api_503"] == 1
+
+    assert contexto.triagem["gemini"] == 1
+    assert not any(llm.CONTADOR_TRIAGEM.values())
+    assert not any(llm.CONTADOR_FALLBACK.values())
+
+
+def test_avaliar_nao_suja_contador_global(monkeypatch):
+    from src import llm, main
+
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr(llm, "CONTADOR_TRIAGEM", {"gemini": 0, "regras": 0, "fallback": 0})
+    monkeypatch.setattr(llm, "CONTADOR_FALLBACK", {m: 0 for m in llm.MOTIVOS_FALLBACK})
+
+    res = main.avaliar(main.DADOS, provider="regras")
+
+    assert res["origem"]["regras"] == res["n"]
+    assert not any(llm.CONTADOR_TRIAGEM.values())
