@@ -87,7 +87,7 @@ Histórico: na amostra de 16 chamados, Regras 3/16 (19%) e 10/16 (62%) contra Ge
 - `app.py` importa `I18N`, `get_text`, `render_dxc_theme`, `render_dxc_logo` e `render_language_selector`; não mantém cópia local de CSS, SVG ou traduções. `get_text` fica disponível para rótulos pontuais sem duplicar o dicionário.
 - O seletor PT/EN fica no topo da área principal; o tema Claro/Escuro fica na barra lateral (`tema_ui`). As chaves de widgets usadas pela agent API (`urg_ui_C15`, callbacks e filtros) não mudaram.
 - O módulo de tema não lê segredos: a configuração continua restrita a `GEMINI_API_KEY` e `GEMINI_MODEL` em `.env` (`src/config.py`). Use `.env.example` como referência; valores iguais a `sua_chave_aqui` são ignorados (`src/config.py:9,22`).
-- `tests/test_tema_dxc.py` cobre a paridade recursiva das 81 chaves (incluindo os 5 blocos aninhados), o fallback de tradução, o CSS dos dois modos, o SVG e a troca de idioma. Suíte total: **174 testes**.
+- `tests/test_tema_dxc.py` cobre a paridade recursiva das 81 chaves (incluindo os 5 blocos aninhados), o fallback de tradução, o CSS dos dois modos, o SVG e a troca de idioma. Suíte total: **175 testes**.
 
 ## Próximos passos
 1. Rodar nova medição no conjunto independente com a instrumentação de motivos já implementada, para classificar os 8 fallbacks da medição auditada antes de atribuir causa à queda de 86% para 72% em intenção.
