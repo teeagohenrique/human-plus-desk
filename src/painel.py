@@ -5,8 +5,10 @@ A IA só sugere; nada é "enviado": a decisão da analista é apenas registrada.
 """
 import json
 import random
+import re
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -14,12 +16,15 @@ from pydantic import BaseModel
 from src import auditoria, llm
 from src.mascara import mascarar
 from src.percepcao import LEITURAS, Historico, Palpite, perceber
-from src.redator import Rascunho
+from src.redator import _PLACEHOLDER, Rascunho
 from src.triagem import Triagem
 
 ORDEM_URGENCIA = {"alta": 0, "media": 1, "baixa": 2}
 DECISOES = ("aprovou", "editou", "rejeitou")
 ORIGENS = ("gemini", "regras", "fallback")
+# Valor inicial do projeto (não vem de pesquisa): abaixo desta semelhança com a
+# sugestão, a resposta é tratada como própria. A equipe pode recalibrar.
+LIMIAR_ADAPTACAO = 0.45
 
 
 class ItemFila(BaseModel):
@@ -117,6 +122,55 @@ def decisao_por_texto(texto_original: str, texto_final: str) -> str:
     return "aprovou" if texto_final.strip() == texto_original.strip() else "editou"
 
 
+def _normalizar_resposta(texto: str) -> str:
+    """Remove marcadores [..], espaços repetidos e espaço antes de pontuação."""
+    limpo = " ".join(_PLACEHOLDER.sub("", texto).split()).lower()
+    return re.sub(r"\s+([.,;:!?])", r"\1", limpo)
+
+
+def classificar_resposta(sugestao: str, resposta: str) -> str:
+    """Classifica como a analista respondeu em relação à sugestão da IA.
+
+    - `aprovou`: usou a sugestão (ignorando apenas marcadores e espaços);
+    - `editou`: adaptou a sugestão (semelhança >= LIMIAR_ADAPTACAO);
+    - `rejeitou`: escreveu resposta própria.
+    A decisão é inferida do texto que a analista escreveu, sem clique extra.
+    """
+    final = _normalizar_resposta(resposta)
+    if not final:
+        raise ValueError("resposta vazia")
+    base = _normalizar_resposta(sugestao)
+    if final == base:
+        return "aprovou"
+    return "editou" if SequenceMatcher(None, base, final).ratio() >= LIMIAR_ADAPTACAO else "rejeitou"
+
+
+def detalhes_supervisao(item: ItemFila, leitura: str | None, leitura_livre: str | None,
+                        urgencia_analista: str | None, rascunho_ia: str,
+                        origem_rascunho: str | None = None) -> dict:
+    """Pacote serializável do que foi mostrado e decidido, para a supervisão revisar depois.
+
+    Só contém texto já mascarado (chamado, trechos e sugestão da IA).
+    """
+    def _ev(m) -> dict:
+        return {"sinal": m.sinal, "trecho": m.trecho}
+
+    return {
+        "origem_triagem": item.origem_triagem,
+        "origem_rascunho": origem_rascunho or item.origem_rascunho,
+        "urgencia_ia": item.triagem.urgencia,
+        "urgencia_analista": urgencia_analista,
+        "leitura": leitura,
+        "leitura_livre": leitura_livre or None,
+        "trechos": [_ev(m) for m in item.triagem.motivos_urgencia + item.triagem.motivos_intencao],
+        "hipoteses": [
+            {"hipotese": p.hipotese, "confianca": p.confianca, "evidencias": [_ev(e) for e in p.evidencias]}
+            for p in item.palpites
+        ],
+        "rascunho_ia": rascunho_ia,
+    }
+
+
 def registrar_decisao(log: Path, item: ItemFila, decisao: str, texto_final: str | None,
                       leitura: str | None = None, leitura_livre: str | None = None,
                       urgencia_analista: str | None = None, urgencia_automatica: bool = False,
@@ -199,7 +253,7 @@ def _urgencia_simulada(rng, ia: str) -> str:
 def gerar_simulado(caminho: Path, itens: list[ItemFila], n: int = 60, semente: int = 7) -> None:
     """Gera decisões INVENTADAS (marcadas com simulado=True) só para ver os gráficos."""
     rng = random.Random(semente)
-    agora = datetime.now(timezone.utc)
+    agora = datetime.now(UTC)
     caminho = Path(caminho)
     caminho.parent.mkdir(parents=True, exist_ok=True)
     with caminho.open("w", encoding="utf-8") as f:

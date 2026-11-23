@@ -2,8 +2,17 @@ import json
 from pathlib import Path
 
 from src import auditoria
-from src.painel import (carregar_historico, decisao_por_texto, gerar_simulado, ids_decididos,
-                        metricas, montar_fila, rascunho_adaptado, registrar_decisao)
+from src.painel import (
+    calibracao_triagem,
+    carregar_historico,
+    decisao_por_texto,
+    gerar_simulado,
+    ids_decididos,
+    metricas,
+    montar_fila,
+    rascunho_adaptado,
+    registrar_decisao,
+)
 from src.redator import gerar_rascunho
 from src.triagem import triar
 
@@ -78,7 +87,6 @@ def test_simulado_e_reprodutivel_e_marcado(tmp_path):
 
 
 # --- calibração da urgência (triagem) ---
-from src.painel import calibracao_triagem
 
 
 def _ev(ia, analista, conf="media"):
@@ -200,3 +208,64 @@ def test_registrar_decisao_guarda_origem_da_sugestao(tmp_path):
     saida = auditoria.ler(log)[0]["saida"]
     assert saida["origem_triagem"] == item.origem_triagem
     assert saida["origem_rascunho"] == item.origem_rascunho
+
+
+# ---- Resposta da analista: classificação, supervisão e interpretação com evidência ----
+
+SUGESTAO = ("Olá! Entendo o desgaste de reportar de novo. Vou analisar o seu caso e te dar um retorno "
+            "[PRAZO DE RETORNO: a analista preenche]. [SOLUÇÃO PROVISÓRIA, se houver: a analista preenche]")
+
+
+def test_classificar_resposta_aprovou_quando_so_remove_marcadores():
+    from src.painel import classificar_resposta
+    sem_marcadores = "Olá! Entendo o desgaste de reportar de novo. Vou analisar o seu caso e te dar um retorno."
+    assert classificar_resposta(SUGESTAO, sem_marcadores) == "aprovou"
+    assert classificar_resposta(SUGESTAO, "  " + sem_marcadores.upper() + "  ") == "aprovou"
+
+
+def test_classificar_resposta_editou_quando_adapta_a_sugestao():
+    from src.painel import classificar_resposta
+    adaptada = ("Olá! Entendo o desgaste de reportar de novo. Vou analisar o seu caso e te dar um retorno "
+                "até as 11h. Enquanto isso, tente reiniciar o módulo.")
+    assert classificar_resposta(SUGESTAO, adaptada) == "editou"
+
+
+def test_classificar_resposta_rejeitou_quando_escreve_do_zero():
+    from src.painel import classificar_resposta
+    propria = "Bom dia. Já escalei o servidor de banco de dados para a infraestrutura e acompanho pessoalmente."
+    assert classificar_resposta(SUGESTAO, propria) == "rejeitou"
+
+
+def test_classificar_resposta_vazia_e_erro():
+    import pytest
+
+    from src.painel import classificar_resposta
+    for vazia in ("", "   ", "[PRAZO DE RETORNO: a analista preenche]"):
+        with pytest.raises(ValueError):
+            classificar_resposta(SUGESTAO, vazia)
+
+
+def test_detalhes_supervisao_e_serializavel_e_sem_dado_pessoal():
+    import json as _json
+
+    from src.painel import detalhes_supervisao
+    item = fila()[0]
+    d = detalhes_supervisao(item, "pressa_prazo", None, "alta", item.rascunho.texto, "regras")
+    assert _json.loads(_json.dumps(d, ensure_ascii=False)) == d
+    assert d["urgencia_ia"] == item.triagem.urgencia and d["urgencia_analista"] == "alta"
+    assert d["leitura"] == "pressa_prazo" and d["rascunho_ia"] == item.rascunho.texto
+    assert all({"sinal", "trecho"} <= set(t) for t in d["trechos"])
+    texto = _json.dumps(d, ensure_ascii=False)
+    assert "123.456.789-09" not in texto and "98765" not in texto
+
+
+def test_trechos_da_leitura_so_traz_evidencia_literal_do_chamado():
+    from src.percepcao import perceber, trechos_da_leitura
+    item = next(i for i in fila() if i.id == "C01")
+    palpites = perceber(item.texto_mascarado, item.triagem, HIST.get("C01", []))
+    prazo = trechos_da_leitura("pressa_prazo", item.triagem, palpites)
+    assert prazo, "C01 tem prazo explícito: a interpretação deve ter trecho de apoio"
+    for m in prazo:
+        assert m.trecho in item.texto_mascarado or m.sinal.startswith("historico:")
+    assert trechos_da_leitura("inseguranca_solucao", item.triagem, palpites) == []
+    assert trechos_da_leitura("leitura_inexistente", item.triagem, palpites) == []

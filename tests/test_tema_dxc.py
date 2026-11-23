@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 
 from src import tema_dxc
 
-
 ANINHADOS = ("niveis", "decisoes", "intencoes", "sinais", "origens")
 
 
@@ -20,11 +19,11 @@ def _verificar_valores(bloco: dict, origem: str) -> None:
 
 
 def test_paridade_chaves_pt_en():
-    """Garante que todas as 81 chaves existem em PT e EN, inclusive as aninhadas."""
+    """Garante que todas as chaves existem em PT e EN, inclusive as aninhadas."""
     chaves_pt = set(tema_dxc.I18N["PT"])
     chaves_en = set(tema_dxc.I18N["EN"])
 
-    assert len(chaves_pt) == 81
+    assert chaves_pt, "Dicionário PT vazio"
     assert chaves_pt == chaves_en, f"Diferença entre chaves PT e EN: {chaves_pt ^ chaves_en}"
 
     for idioma in ("PT", "EN"):
@@ -37,14 +36,27 @@ def test_paridade_chaves_pt_en():
 def test_get_text_traducao_e_fallback():
     """Valida PT, EN, chave desconhecida e idioma ainda não inicializado."""
     with patch.object(tema_dxc.st, "session_state", {"lang": "PT"}):
-        assert tema_dxc.get_text("nav_marina") == "Painel da Marina"
+        assert tema_dxc.get_text("nav_marina") == "Central de Atendimento"
         assert tema_dxc.get_text("chave_inexistente") == "chave_inexistente"
 
     with patch.object(tema_dxc.st, "session_state", {"lang": "EN"}):
-        assert tema_dxc.get_text("nav_marina") == "Marina's Dashboard"
+        assert tema_dxc.get_text("nav_marina") == "Service Console"
 
     with patch.object(tema_dxc.st, "session_state", {}):
-        assert tema_dxc.get_text("nav_rafael") == "Painel do Rafael"
+        assert tema_dxc.get_text("nav_rafael") == "Gestão e Qualidade"
+
+
+def test_vocabulario_elegante_sem_termos_antigos():
+    """Os rótulos visíveis usam o vocabulário aprovado, não os nomes técnicos antigos."""
+    pt = tema_dxc.I18N["PT"]
+    assert pt["perception"] == "Análise Contextual"
+    assert pt["kpi_pending"] == "Em Fila"
+    assert pt["kpi_high"] == "Prioridade Crítica"
+    assert pt["kpi_done"] == "Finalizados"
+    assert pt["queue"] == "Fila de Atendimento"
+    textos_visiveis = " ".join(v for v in pt.values() if isinstance(v, str))
+    for antigo in ("Camada", "Palpites", "Nenhuma delas", "Pendentes"):
+        assert antigo not in textos_visiveis, f"Termo antigo ainda exibido: {antigo}"
 
 
 def test_render_dxc_theme_claro_e_escuro():

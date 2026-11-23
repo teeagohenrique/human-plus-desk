@@ -10,6 +10,7 @@ Regras de ouro:
 - Não muda a urgência da triagem: apenas SUGERE subir (`sugere_subir_urgencia`).
 """
 from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from src.redator import _ROTULO
@@ -25,6 +26,16 @@ LEITURAS = {
     "perda_de_confianca": "Perda de confiança no serviço",
     "inseguranca_solucao": "Insegurança sobre a solução",
     "duvida_de_uso": "Dúvida de uso, não falha",
+}
+
+# Sinais da triagem que sustentam cada interpretação (espelha as regras de `_leituras`).
+# Interpretação sem sinal associado não tem trecho de apoio: a tela avisa a analista.
+SINAIS_DA_LEITURA = {
+    "pressa_prazo": ("prazo", "bloqueio"),
+    "cansaco_repeticao": ("recorrencia",),
+    "perda_de_confianca": ("recorrencia", "risco_saida"),
+    "inseguranca_solucao": (),
+    "duvida_de_uso": (),
 }
 
 _CONF = {"baixa": 0, "media": 1, "alta": 2}
@@ -121,3 +132,21 @@ def perceber(texto_mascarado: str, triagem: Triagem, historico: list[Historico] 
     for p in palpites:  # guardrail: nada de rótulo sobre a pessoa
         assert not _ROTULO.search(p.hipotese), p.hipotese
     return palpites
+
+
+def trechos_da_leitura(leitura: str, triagem: Triagem, palpites: list[Palpite]) -> list[Motivo]:
+    """Trechos literais do chamado que sustentam uma interpretação.
+
+    Garante que interpretação e evidência trabalhem juntas: o que a analista vê
+    como apoio vem sempre do texto (ou do histórico), nunca de inferência solta.
+    """
+    sinais = SINAIS_DA_LEITURA.get(leitura, ())
+    achados = [m for m in triagem.motivos_urgencia if m.sinal in sinais]
+    if leitura in ("cansaco_repeticao", "perda_de_confianca"):
+        achados += [e for p in palpites for e in p.evidencias if e.sinal.startswith("historico:")]
+    if leitura == "duvida_de_uso" and triagem.intencao == "duvida":
+        achados += list(triagem.motivos_intencao)
+    unicos: dict[tuple[str, str], Motivo] = {}
+    for m in achados:
+        unicos.setdefault((m.sinal, m.trecho), m)
+    return list(unicos.values())
