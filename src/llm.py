@@ -8,8 +8,8 @@ Princípios:
   seleciona o adaptador `regras` silenciosamente.
 - `validar_trechos` vale para TODOS os adaptadores (regras e LLM): compara cada
   trecho exatamente (normalizando apenas espaços) contra o texto MASCARADO.
-- O adaptador Gemini espaça chamadas e aplica backoff limitado (3 tentativas)
-  em 429/503, respeitando o `retryDelay` informado pela API.
+- O adaptador Gemini espaça chamadas e aplica backoff limitado: 3 tentativas
+  para 429 (respeitando o `retryDelay`) e 5 para 503 (picos de demanda).
 """
 import os
 import re
@@ -25,7 +25,10 @@ PROVIDERS = ("regras", "gemini")
 # O espaçamento abaixo vale somente para o adaptador Gemini; o modo regras
 # continua sem qualquer pausa.
 INTERVALO_MINIMO_GEMINI = 4.6
-MAX_TENTATIVAS_API = 3
+MAX_TENTATIVAS_API = 3          # 429: cota por minuto
+MAX_TENTATIVAS_503 = 5          # 503: pico de demanda do provedor
+ESPERA_503_BASE = 10.0
+ESPERA_503_TETO = 60.0
 STATUS_TRANSIENTES = (429, 503)
 _ULTIMA_CHAMADA_GEMINI: float | None = None
 
@@ -73,16 +76,21 @@ def _retry_delay(exc: Exception) -> float | None:
 
 def _chamar_api_gemini(cliente: Any, modelo: str, contents: str, config: Any) -> Any:
     """Chama a API com espaçamento e backoff limitado para 429/503."""
-    for tentativa in range(MAX_TENTATIVAS_API):
+    for tentativa in range(max(MAX_TENTATIVAS_API, MAX_TENTATIVAS_503)):
         _pausar_entre_chamadas()
         try:
             return cliente.models.generate_content(model=modelo, contents=contents, config=config)
         except Exception as exc:
-            if _status_erro(exc) not in STATUS_TRANSIENTES or tentativa == MAX_TENTATIVAS_API - 1:
+            status = _status_erro(exc)
+            limite = MAX_TENTATIVAS_503 if status == 503 else MAX_TENTATIVAS_API
+            if status not in STATUS_TRANSIENTES or tentativa == limite - 1:
                 raise
             espera = _retry_delay(exc)
             if espera is None:
-                espera = min(2.0 ** tentativa, 30.0)
+                if status == 503:
+                    espera = min(ESPERA_503_BASE * 2 ** tentativa, ESPERA_503_TETO)
+                else:
+                    espera = min(2.0 ** tentativa, 30.0)
             time.sleep(espera)
 
 

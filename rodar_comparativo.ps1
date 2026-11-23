@@ -5,14 +5,12 @@
 $ErrorActionPreference = "Stop"
 Set-Location -Path $PSScriptRoot
 
-if (-not $env:GEMINI_API_KEY) {
-    Write-Error 'Defina GEMINI_API_KEY nesta janela antes de rodar: $env:GEMINI_API_KEY = "sua_chave"'
+if (-not (Test-Path (Join-Path $PSScriptRoot '.env'))) {
+    Write-Error 'Crie o arquivo .env na raiz com GEMINI_API_KEY e GEMINI_MODEL antes de rodar.'
 }
 
-# ID do modelo (nao e a versao do pacote google-genai).
-$env:GEMINI_MODEL = "gemini-3.8-flash"
-
-Write-Output "Modelo: $env:GEMINI_MODEL"
+# Modelo e chave vem do .env, carregado por src.main (arquivo ignorado pelo git).
+Write-Output "Modelo e chave: lidos de .env"
 
 & .\.venv\Scripts\python.exe -m src.main --avaliar data/chamados_validacao_independente.json --provider regras
 & .\.venv\Scripts\python.exe -m src.main --avaliar data/chamados_validacao_independente.json --provider gemini

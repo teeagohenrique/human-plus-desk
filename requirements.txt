@@ -3,6 +3,7 @@ pydantic>=2.0
 pandas
 streamlit>=1.40
 pytest>=8.0
+google-genai>=3.6
 
 # Próximas partes (ainda NÃO usadas no código):
 # crewai            # orquestração dos agentes (Percepção/Redator com LLM)

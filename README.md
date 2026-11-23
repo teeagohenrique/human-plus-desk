@@ -31,18 +31,43 @@ cd human-plus-desk
 .\.venv\Scripts\python.exe -m src.main
 .\.venv\Scripts\python.exe -m src.main --avaliar
 .\.venv\Scripts\python.exe -m src.main --avaliar data\chamados_validacao_independente.json
+.\.venv\Scripts\python.exe -m src.main --avaliar data\chamados_validacao_independente.json --provider gemini
 .\.venv\Scripts\streamlit.exe run app.py
 ```
 
-## Limites honestos desta versão (v2 — Fases 1 e 2)
-- Triagem e Percepção ainda rodam por **regras determinísticas**, sem LLM/CrewAI integrado.
-- **Benchmark honesto:**
-  - Em `data/chamados_simulados.json` (escrito junto com as regras): 16/16 (não prova qualidade).
-  - Em `data/chamados_validacao_independente.json` (16 chamados com linguagem natural): **Intenção 3/16 (19%)** e **Urgência 10/16 (62%)**. Esse resultado evidencia o limite das regras fixas e justifica a Fase 3.
-- Nomes de pessoas ainda **não** são mascarados (necessário NER/Presidio antes de enviar textos a LLMs externos).
-- Transcrição de áudio (`openai-whisper`) e orquestração (`crewai`) ainda não estão ativos.
+Para usar o Gemini, preencha `GEMINI_API_KEY` e `GEMINI_MODEL` no `.env` da raiz (arquivo ignorado pelo git). Sem chave, o comando acima cai silenciosamente em `regras`.
 
-## Próximo passo (Fase 3)
-1. Proteger nomes próprios na máscara de dados.
-2. Integrar LLM / CrewAI (`output_pydantic`) na Triagem, Percepção e/ou Redator OARS, mantendo o guardrail determinístico em Python como trava obrigatória.
-3. Reavaliar `data/chamados_validacao_independente.json` para medir o ganho real frente às regras.
+## Camada LLM (Fase 3 — integrada em `src/llm.py`)
+- Dois adaptadores atrás da mesma interface: `regras` (padrão, determinístico e offline) e `gemini` (`gemini-3.5-flash-lite` no `.env` de referência).
+- Chave e modelo ficam no `.env`, carregado por `src/main.py` apenas na execução da CLI. Variáveis já definidas no terminal têm prioridade.
+- O import do SDK é lazy e o fallback para regras é silencioso quando não há chave.
+- `validar_trechos` é comum aos dois adaptadores: exige trecho literal exato contra o texto **mascarado**, com capitalização preservada.
+- Espaçamento de 4,6 s entre chamadas e backoff limitado: 3 tentativas para 429 (respeitando `retryDelay`) e 5 para 503 (10/20/40/60 s).
+- A máscara cobre também nomes próprios por heurística (`src/mascara.py`), antes de qualquer envio externo.
+
+## Benchmark no conjunto independente (36 chamados)
+`data/chamados_validacao_independente.json` foi escrito com formulações naturais, sem ajustar regras nem prompt em cima dele. V01–V16 foram preservados da amostra original; V17–V36 foram acrescentados. Ambos os provedores rodaram no **mesmo arquivo**.
+
+| Métrica | Regras | Gemini | Diferença |
+|---|---|---|---|
+| Intenção | 8/36 (22%) | **31/36 (86%)** | +23 acertos |
+| Urgência | 20/36 (56%) | **29/36 (81%)** | +9 acertos |
+
+`[Fonte: saídas de --provider regras e --provider gemini no mesmo arquivo, 23 de novembro de 2026]`
+
+Na medição anterior de 16 chamados, o placar foi Regras 3/16 (19%) e 10/16 (62%) contra Gemini 13/16 (81%) e 12/16 (75%). A amostra maior confirmou o ganho.
+
+**O que a medição cobre:** apenas a triagem (intenção e urgência), que é o que `--avaliar` compara entre os adaptadores. O redator com LLM existe em `rascunho_com_llm` e é usado pelo comando de demonstração, mas não entra neste placar.
+
+## Limites honestos desta versão
+- 36 chamados ainda é amostra pequena: o resultado é sinal forte, não número definitivo.
+- A medição não distingue quantos chamados foram respondidos pelo Gemini e quantos caíram no fallback silencioso para regras.
+- `validar_trechos` aceita fragmento de palavra (ex.: `cai` em `caiu`); é ponto de atenção, não alterado nesta rodada.
+- O painel Streamlit (`app.py`, `src/painel.py`) ainda consome triagem e rascunho por **regras**. O Gemini está disponível pela CLI; levá-lo ao painel é trabalho futuro.
+- Transcrição de áudio (`openai-whisper`) e orquestração (`crewai`) seguem fora do MVP, como planejado.
+- Análise de prosódia/emoção continua fora do projeto por risco legal e baixa confiabilidade científica.
+
+## Próximos passos
+1. Registrar contador de fallback na medição, para separar respostas do modelo e das regras.
+2. Levar o adaptador LLM ao painel, mantendo o guardrail determinístico e a decisão humana sem pré-seleção.
+3. Revalidar em amostra maior (50–100 chamados) antes de apresentar os números como definitivos à DXC.

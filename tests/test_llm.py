@@ -177,6 +177,46 @@ def test_backoff_503_tambem_tenta_de_novo(monkeypatch):
     assert cliente.chamadas == 2
 
 
+def test_backoff_503_tem_limite_de_cinco_tentativas(monkeypatch):
+    from src import llm
+
+    _preparar_sem_pausa(monkeypatch)
+    dormidas = []
+    relogio = [0.0]
+
+    def dormir(segundos):
+        dormidas.append(segundos)
+        relogio[0] += segundos
+
+    monkeypatch.setattr(llm.time, "monotonic", lambda: relogio[0])
+    monkeypatch.setattr(llm.time, "sleep", dormir)
+    cliente = _ClienteFalso([_ErroAPI(503)] * 6)
+
+    with pytest.raises(_ErroAPI):
+        llm._chamar_api_gemini(cliente, "modelo", "prompt", None)
+    assert cliente.chamadas == llm.MAX_TENTATIVAS_503
+    assert dormidas == [10.0, 20.0, 40.0, 60.0]
+
+
+def test_backoff_503_respeita_retry_delay_quando_presente(monkeypatch):
+    from src import llm
+
+    _preparar_sem_pausa(monkeypatch)
+    dormidas = []
+    relogio = [0.0]
+
+    def dormir(segundos):
+        dormidas.append(segundos)
+        relogio[0] += segundos
+
+    monkeypatch.setattr(llm.time, "monotonic", lambda: relogio[0])
+    monkeypatch.setattr(llm.time, "sleep", dormir)
+    cliente = _ClienteFalso([_ErroAPI(503, "7s"), "resposta"])
+
+    assert llm._chamar_api_gemini(cliente, "modelo", "prompt", None) == "resposta"
+    assert dormidas == [pytest.approx(7.2)]
+
+
 def test_backoff_tem_limite_de_tres_tentativas(monkeypatch):
     from src import llm
 

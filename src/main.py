@@ -5,9 +5,12 @@ A IA só SUGERE: toda decisão fica como "pendente" até a analista agir no pain
 Uso:  python -m src.main                                          (demonstração, padrão regras)
       python -m src.main --avaliar                                (avalia gabarito rascunho)
       python -m src.main --avaliar caminho.json --provider regras (avalia com provedor explícito)
+
+GEMINI_API_KEY e GEMINI_MODEL podem vir do .env na raiz (ignorado pelo git).
 """
 import argparse
 import json
+import os
 from pathlib import Path
 
 from src import auditoria
@@ -20,6 +23,24 @@ DADOS = RAIZ / "data" / "chamados_simulados.json"
 LOG = RAIZ / "data" / "auditoria.jsonl"
 
 ORDEM = {"alta": 0, "media": 1, "baixa": 2}
+
+PLACEHOLDER_CHAVE = "sua_chave_aqui"
+
+
+def _carregar_env() -> None:
+    """Carrega GEMINI_* do .env sem sobrescrever variáveis já definidas no terminal."""
+    caminho = RAIZ / ".env"
+    if not caminho.exists():
+        return
+    for linha in caminho.read_text(encoding="utf-8").splitlines():
+        linha = linha.strip()
+        if not linha or linha.startswith("#") or "=" not in linha:
+            continue
+        chave, valor = (parte.strip() for parte in linha.split("=", 1))
+        valor = valor.strip("\"'")
+        if not valor or valor == PLACEHOLDER_CHAVE:
+            continue
+        os.environ.setdefault(chave, valor)
 
 
 def processar(
@@ -101,6 +122,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 if __name__ == "__main__":
+    _carregar_env()
     args = _parse_args()
     if args.avaliar is not None:
         avaliar(Path(args.avaliar), provider=args.provider)
