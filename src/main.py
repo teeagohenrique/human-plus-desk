@@ -17,14 +17,13 @@ from src.config import carregar_env
 from src.llm import (
     obter_contador_fallback,
     obter_contador_triagem,
-    rascunho_com_llm,
     resolver_provider,
     triagem_com_llm,
     usar_contadores,
     zerar_contadores,
 )
 from src.mascara import mascarar
-from src.percepcao import perceber
+from src.pipeline import processar_chamado
 
 RAIZ = Path(__file__).resolve().parent.parent
 DADOS = RAIZ / "data" / "chamados_simulados.json"
@@ -43,17 +42,15 @@ def processar(
     log: Path | None = LOG,
     provider: str | None = None,
 ) -> dict:
-    m = mascarar(texto)
-    t = triagem_com_llm(m.texto, provider=provider)
-    p = perceber(m.texto, t)
-    leitura_inicial = p[0].leituras[0] if p else None
-    r = rascunho_com_llm(m.texto, t, palpites=p, leitura=leitura_inicial, provider=provider)
+    resultado = processar_chamado(texto, provider=provider)
     if log is not None:
+        m, t, p, r = resultado.mascara, resultado.triagem, resultado.palpites, resultado.rascunho
         auditoria.registrar(log, chamado_id, "mascara", {"tipos": m.tipos_encontrados, "texto": m.texto})
         auditoria.registrar(log, chamado_id, "triagem", t.model_dump())
         auditoria.registrar(log, chamado_id, "percepcao", {"palpites": [x.model_dump() for x in p]})
         auditoria.registrar(log, chamado_id, "redator", r.model_dump())
-    return {"id": chamado_id, "mascara": m, "triagem": t, "palpites": p, "rascunho": r}
+    return {"id": chamado_id, "mascara": resultado.mascara, "triagem": resultado.triagem,
+            "palpites": resultado.palpites, "rascunho": resultado.rascunho}
 
 
 def carregar(caminho: Path = DADOS) -> list[dict]:

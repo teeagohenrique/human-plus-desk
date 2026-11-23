@@ -15,8 +15,8 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from src import auditoria, llm
-from src.mascara import mascarar
-from src.percepcao import LEITURAS, Historico, Palpite, perceber
+from src.percepcao import LEITURAS, Historico, Palpite
+from src.pipeline import processar_chamado
 from src.redator import _PLACEHOLDER, Rascunho
 from src.triagem import Triagem
 
@@ -57,26 +57,24 @@ def montar_fila(
     total_etapas = len(chamados) * 2
     etapa = 0
     for c in chamados:
-        m = mascarar(c["texto"])
-        t, origem_t = llm.triagem_com_origem(m.texto, provider=provider, model=model)
-        etapa += 1
-        if ao_avancar is not None:
-            ao_avancar(etapa, total_etapas, f"{c['id']}:triagem")
-        palpites = perceber(m.texto, t, historicos.get(c["id"], []))
-        leitura_inicial = palpites[0].leituras[0] if palpites else None
-        r, origem_r = llm.rascunho_com_origem(
-            m.texto, t, palpites=palpites, leitura=leitura_inicial,
-            provider=provider, model=model,
+        chamado_id = c["id"]
+
+        def ao_etapa(nome: str, cid: str = chamado_id) -> None:
+            nonlocal etapa
+            etapa += 1
+            if ao_avancar is not None:
+                ao_avancar(etapa, total_etapas, f"{cid}:{nome}")
+
+        r = processar_chamado(
+            c["texto"], provider=provider, model=model,
+            historico=historicos.get(chamado_id, []), ao_etapa=ao_etapa,
         )
-        etapa += 1
-        if ao_avancar is not None:
-            ao_avancar(etapa, total_etapas, f"{c['id']}:rascunho")
         itens.append(ItemFila(
-            id=c["id"], texto_mascarado=m.texto, triagem=t,
-            palpites=palpites, rascunho=r,
-            origem_triagem=origem_t, origem_rascunho=origem_r,
-            leitura_inicial=leitura_inicial,
-            provider_rascunho=llm.resolver_provider(provider),
+            id=chamado_id, texto_mascarado=r.mascara.texto, triagem=r.triagem,
+            palpites=r.palpites, rascunho=r.rascunho,
+            origem_triagem=r.origem_triagem, origem_rascunho=r.origem_rascunho,
+            leitura_inicial=r.leitura_inicial,
+            provider_rascunho=r.provider_rascunho,
         ))
     # Mais urgentes primeiro; dentro da urgência, maior pontuação primeiro.
     itens.sort(key=lambda i: (ORDEM_URGENCIA[i.triagem.urgencia], -i.triagem.pontuacao_urgencia, i.id))
