@@ -2,9 +2,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.llm import (obter_contador_triagem, rascunho_com_llm, rascunho_com_origem,
-                     resolver_provider, triagem_com_llm, triagem_com_origem,
-                     validar_trechos, validar_triagem_trechos, zerar_contador_triagem)
+from src.llm import (obter_contador_fallback, obter_contador_triagem, rascunho_com_llm,
+                     rascunho_com_origem, resolver_provider, triagem_com_llm, triagem_com_origem,
+                     validar_trechos, validar_triagem_trechos, zerar_contador_triagem,
+                     zerar_contadores)
 from src.mascara import mascarar
 from src.percepcao import perceber
 from src.triagem import Triagem, triar
@@ -390,3 +391,92 @@ def test_rascunho_gemini_com_excecao_de_api_cai_em_fallback(monkeypatch):
     monkeypatch.setattr(llm, "_chamar_api_gemini", falhar)
     r, origem = rascunho_com_origem(CHAMADO, triar(CHAMADO), provider="gemini")
     assert origem == "fallback" and r.passou_guardrail
+
+
+def test_fallback_por_trecho_invalido_e_registrado_com_motivo(monkeypatch):
+    _preparar_gemini_falso(monkeypatch, _resposta_invalida())
+    zerar_contadores()
+    triagem_com_origem(CHAMADO, provider="gemini")
+    motivos = obter_contador_fallback()
+    assert motivos["trecho_invalido"] == 1
+    assert sum(motivos.values()) == 1
+
+
+def test_fallback_por_schema_invalido_e_registrado_com_motivo(monkeypatch):
+    _preparar_gemini_falso(monkeypatch, SimpleNamespace(parsed={"nao": "e uma Triagem"}))
+    zerar_contadores()
+    triagem_com_origem(CHAMADO, provider="gemini")
+    assert obter_contador_fallback()["schema_invalido"] == 1
+
+
+@pytest.mark.parametrize("status,motivo", [(429, "erro_api_429"), (503, "erro_api_503")])
+def test_fallback_por_erro_api_e_classificado_por_status(monkeypatch, status, motivo):
+    from src import llm
+
+    monkeypatch.setenv("GEMINI_API_KEY", "chave_teste")
+    monkeypatch.setenv("GEMINI_MODEL", "modelo_teste")
+
+    def falhar(*_args, **_kwargs):
+        raise _ErroAPI(status)
+
+    monkeypatch.setattr(llm, "_chamar_api_gemini", falhar)
+    zerar_contadores()
+    triagem_com_origem(CHAMADO, provider="gemini")
+    motivos = obter_contador_fallback()
+    assert motivos[motivo] == 1
+    assert sum(motivos.values()) == 1
+
+
+def test_fallback_por_guardrail_e_marcadores_sao_distintos(monkeypatch):
+    from src import llm
+    from src.redator import PEND_PRAZO
+
+    monkeypatch.setenv("GEMINI_API_KEY", "chave_teste")
+    monkeypatch.setenv("GEMINI_MODEL", "modelo_teste")
+    zerar_contadores()
+
+    monkeypatch.setattr(
+        llm, "_chamar_api_gemini",
+        lambda *_a, **_k: SimpleNamespace(text="Você está nervoso; resolvo até amanhã às 10h."),
+    )
+    rascunho_com_origem(CHAMADO, triar(CHAMADO), provider="gemini")
+    assert obter_contador_fallback()["guardrail"] == 1
+
+    monkeypatch.setattr(
+        llm, "_chamar_api_gemini",
+        lambda *_a, **_k: SimpleNamespace(text=f"Olá, entendi o problema. {PEND_PRAZO}"),
+    )
+    rascunho_com_origem(CHAMADO, triar(CHAMADO), provider="gemini")
+    motivos = obter_contador_fallback()
+    assert motivos["guardrail"] == 1
+    assert motivos["marcadores_faltantes"] == 1
+
+
+def test_zerar_contadores_limpa_origem_e_motivos(monkeypatch):
+    _preparar_gemini_falso(monkeypatch, _resposta_invalida())
+    triagem_com_origem(CHAMADO, provider="gemini")
+    assert any(obter_contador_fallback().values())
+
+    zerar_contadores()
+    assert obter_contador_triagem() == {"gemini": 0, "regras": 0, "fallback": 0}
+    assert not any(obter_contador_fallback().values())
+
+
+def test_avaliar_expoe_motivos_dos_fallbacks(monkeypatch):
+    from src import llm, main
+
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    original = main.triagem_com_llm
+    vistos = []
+
+    def triagem_com_um_fallback(texto, provider=None):
+        vistos.append(1)
+        if len(vistos) == 1:
+            llm._registrar_fallback("erro_api_503")
+            llm.CONTADOR_TRIAGEM["fallback"] += 1
+        return original(texto, provider=provider)
+
+    monkeypatch.setattr(main, "triagem_com_llm", triagem_com_um_fallback)
+    res = main.avaliar(main.DADOS)
+    assert res["fallback_motivos"]["erro_api_503"] == 1
+    assert res["origem"]["fallback"] == 1

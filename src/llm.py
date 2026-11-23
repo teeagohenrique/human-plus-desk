@@ -12,6 +12,10 @@ Princípios:
   para 429 (respeitando o `retryDelay`) e 5 para 503 (picos de demanda).
 - `CONTADOR_TRIAGEM` registra a origem de cada triagem: `gemini`, `regras` ou
   `fallback` (Gemini pedido, mas respondido pelas regras).
+- `CONTADOR_FALLBACK` separa o MOTIVO de cada fallback efetivo (SDK ausente,
+  cliente indisponível, erro de API por status, schema inválido, trecho inválido,
+  guardrail e marcadores faltantes). Assim a medição distingue falha de API de
+  falha de validação sem depender de log externo.
 - `triagem_com_origem` e `rascunho_com_origem` devolvem `(objeto, origem)` para
   que o painel mostre o selo de procedência em cada chamado.
 """
@@ -38,6 +42,19 @@ _ULTIMA_CHAMADA_GEMINI: float | None = None
 
 CONTADOR_TRIAGEM = {"gemini": 0, "regras": 0, "fallback": 0}
 
+MOTIVOS_FALLBACK = (
+    "sdk_indisponivel",
+    "cliente_indisponivel",
+    "erro_api_429",
+    "erro_api_503",
+    "erro_api_outro",
+    "schema_invalido",
+    "trecho_invalido",
+    "guardrail",
+    "marcadores_faltantes",
+)
+CONTADOR_FALLBACK = {motivo: 0 for motivo in MOTIVOS_FALLBACK}
+
 
 def zerar_contador_triagem() -> None:
     """Zera as categorias antes de uma medição."""
@@ -45,13 +62,31 @@ def zerar_contador_triagem() -> None:
         CONTADOR_TRIAGEM[chave] = 0
 
 
+def zerar_contadores() -> None:
+    """Zera origem e motivos antes de uma medição completa."""
+    zerar_contador_triagem()
+    for motivo in CONTADOR_FALLBACK:
+        CONTADOR_FALLBACK[motivo] = 0
+
+
 def obter_contador_triagem() -> dict[str, int]:
     """Devolve uma cópia, para que chamadores não alterem o contador."""
     return dict(CONTADOR_TRIAGEM)
 
 
+def obter_contador_fallback() -> dict[str, int]:
+    """Devolve uma cópia dos motivos, sem expor o contador interno."""
+    return dict(CONTADOR_FALLBACK)
+
+
 def _registrar_triagem(categoria: str) -> None:
     CONTADOR_TRIAGEM[categoria] += 1
+
+
+def _registrar_fallback(motivo: str) -> None:
+    if motivo not in CONTADOR_FALLBACK:
+        raise ValueError(f"Motivo de fallback desconhecido: {motivo!r}")
+    CONTADOR_FALLBACK[motivo] += 1
 
 
 def _pausar_entre_chamadas() -> None:
@@ -72,6 +107,13 @@ def _status_erro(exc: Exception) -> int | None:
         if isinstance(valor, int):
             return valor
     return None
+
+
+def _registrar_erro_api(exc: Exception) -> str:
+    """Classifica a exceção da API por status e devolve o motivo registrado."""
+    motivo = {429: "erro_api_429", 503: "erro_api_503"}.get(_status_erro(exc), "erro_api_outro")
+    _registrar_fallback(motivo)
+    return motivo
 
 
 def _retry_delay(exc: Exception) -> float | None:
@@ -179,12 +221,14 @@ def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativ
         from google import genai
         from google.genai import types
     except ImportError:
+        _registrar_fallback("sdk_indisponivel")
         return triar(texto_mascarado), "fallback"
 
     modelo = _modelo_gemini(model)
     try:
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
     except Exception:
+        _registrar_fallback("cliente_indisponivel")
         return triar(texto_mascarado), "fallback"
     prompt_base = (
         "Classifique o chamado de service desk abaixo em português.\n"
@@ -197,6 +241,8 @@ def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativ
     )
 
     feedback = ""
+    motivo_falha = "schema_invalido"
+    motivo_api: str | None = None
     for _ in range(max_tentativas):
         prompt = prompt_base if not feedback else f"{prompt_base}\n\nCorrija o erro anterior: {feedback}"
         try:
@@ -210,19 +256,24 @@ def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativ
                     temperature=0.0,
                 ),
             )
-        except Exception:
+        except Exception as exc:
             # Cota esgotada, 503 persistente ou queda de rede: a tela não pode
             # quebrar. Sai do loop e devolve a triagem determinística.
+            motivo_api = _registrar_erro_api(exc)
             break
         triagem = resp.parsed
         if isinstance(triagem, Triagem):
             ok, invalidos = validar_triagem_trechos(triagem, texto_mascarado)
             if ok:
                 return triagem, "gemini"
+            motivo_falha = "trecho_invalido"
             feedback = f"Os seguintes trechos não aparecem literalmente no chamado mascarado: {invalidos}."
         else:
+            motivo_falha = "schema_invalido"
             feedback = "A resposta não seguiu o esquema Pydantic Triagem."
 
+    if motivo_api is None:
+        _registrar_fallback(motivo_falha)
     return triar(texto_mascarado), "fallback"
 
 
@@ -238,12 +289,14 @@ def _rascunho_gemini(
         from google import genai
         from google.genai import types
     except ImportError:
+        _registrar_fallback("sdk_indisponivel")
         return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura), "fallback"
 
     modelo = _modelo_gemini(model)
     try:
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
     except Exception:
+        _registrar_fallback("cliente_indisponivel")
         return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura), "fallback"
     contexto_palpites = "; ".join(getattr(p, "hipotese", str(p)) for p in (palpites or [])) or "nenhum"
     prompt_base = (
@@ -261,6 +314,8 @@ def _rascunho_gemini(
     )
 
     feedback = ""
+    motivo_falha = "guardrail"
+    motivo_api: str | None = None
     for _ in range(max_tentativas):
         prompt = prompt_base if not feedback else f"{prompt_base}\n\nCorrija a violação de guardrail: {feedback}"
         try:
@@ -270,7 +325,8 @@ def _rascunho_gemini(
                 prompt,
                 types.GenerateContentConfig(temperature=0.2),
             )
-        except Exception:
+        except Exception as exc:
+            motivo_api = _registrar_erro_api(exc)
             break
         texto = (resp.text or "").strip()
         ok, retorno = validar_rascunho(texto, texto_mascarado)
@@ -285,10 +341,14 @@ def _rascunho_gemini(
                 feedback_guardrail="",
             ), "gemini"
         if not ok:
+            motivo_falha = "guardrail"
             feedback = retorno
         else:
+            motivo_falha = "marcadores_faltantes"
             feedback = f"Faltam os marcadores obrigatórios entre colchetes: {faltantes}. Inclua-os exatamente como fornecidos."
 
+    if motivo_api is None:
+        _registrar_fallback(motivo_falha)
     return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura), "fallback"
 
 

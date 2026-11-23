@@ -44,7 +44,7 @@ Para usar o Gemini, preencha `GEMINI_API_KEY` e `GEMINI_MODEL` no `.env` da raiz
 - O import do SDK é lazy. O fallback para regras é silencioso quando não há chave, quando o SDK falha (429/503/cota esgotada) ou quando a resposta não passa no guardrail.
 - `validar_trechos` é comum aos dois adaptadores: exige trecho literal exato contra o texto **mascarado**, com capitalização preservada e fronteira de palavra (`cai` não casa com `caiu`).
 - Espaçamento de 4,6 s entre chamadas e backoff limitado: 3 tentativas para 429 (respeitando `retryDelay`) e 5 para 503 (10/20/40/60 s).
-- Contador de origem da triagem: `gemini`, `regras` e `fallback` (Gemini pedido, mas respondido pelas regras). O `--avaliar` imprime a linha `Origem: ...` e devolve o dicionário no resultado.
+- Contador de origem da triagem: `gemini`, `regras` e `fallback` (Gemini pedido, mas respondido pelas regras). O `--avaliar` imprime `Origem: ...` e `Fallbacks: ...` e devolve ambos os dicionários (`origem` e `fallback_motivos`) no resultado. `zerar_contadores()` limpa os dois antes de cada medição. "Gemini pedido sem chave" continua contando como `regras`, não como fallback.
 - A máscara cobre também nomes próprios por heurística (`src/mascara.py`), antes de qualquer envio externo.
 
 ## Benchmark no conjunto independente (36 chamados)
@@ -59,7 +59,7 @@ Para usar o Gemini, preencha `GEMINI_API_KEY` e `GEMINI_MODEL` no `.env` da raiz
 
 `[Fonte: saída de --provider gemini: "Origem: gemini=28 | regras=0 | fallback=8" e "Arquivo: chamados_validacao_independente.json | Provider: gemini | Intenção: 26/36 (72%) | Urgência: 29/36 (81%)", 23 de novembro de 2026]`
 
-Dos 36 chamados, 28 foram respondidos pelo Gemini e 8 caíram em fallback por regras. A urgência se manteve em 29/36. A medição anterior, feita antes do contador e antes do endurecimento de `validar_trechos` com fronteira de palavra (`src/llm.py:122-129`), registrou 31/36 (86%) em intenção e 29/36 (81%) em urgência. A queda de 86% para 72% em intenção coincide com esse endurecimento e com a entrada do fallback por exceção de API. A causa dos 8 fallbacks **não foi instrumentada separadamente** — o contador não distingue trecho inválido de erro de API —, então não é possível atribuí-la sem nova medição.
+Dos 36 chamados, 28 foram respondidos pelo Gemini e 8 caíram em fallback por regras. A urgência se manteve em 29/36. A medição anterior, feita antes do contador e antes do endurecimento de `validar_trechos` com fronteira de palavra (`src/llm.py:122-129`), registrou 31/36 (86%) em intenção e 29/36 (81%) em urgência. A queda de 86% para 72% em intenção coincide com esse endurecimento e com a entrada do fallback por exceção de API. Essa medição antiga **não separava os motivos**. `src/llm.py` agora registra cada fallback por causa (erro de API por status, trecho inválido, schema inválido, guardrail, marcadores faltantes, SDK ou cliente indisponíveis) e o `--avaliar` imprime a linha `Fallbacks: ...`. Classificar retroativamente aqueles 8 casos exige uma nova medição com a instrumentação ligada.
 
 Histórico: na amostra de 16 chamados, Regras 3/16 (19%) e 10/16 (62%) contra Gemini 13/16 (81%) e 12/16 (75%). A primeira tentativa de auditoria foi interrompida por `503 UNAVAILABLE` após as cinco tentativas de backoff, sem placar parcial; a segunda completou com o resultado acima.
 
@@ -90,6 +90,6 @@ Histórico: na amostra de 16 chamados, Regras 3/16 (19%) e 10/16 (62%) contra Ge
 - `tests/test_tema_dxc.py` cobre a paridade recursiva das 81 chaves (incluindo os 5 blocos aninhados), o fallback de tradução, o CSS dos dois modos, o SVG e a troca de idioma. Suíte total: **129 testes**.
 
 ## Próximos passos
-1. Investigar os 8 fallbacks da medição auditada com instrumentação separada (trecho inválido vs. erro de API) antes de atribuir causa à queda de 86% para 72% em intenção.
+1. Rodar nova medição no conjunto independente com a instrumentação de motivos já implementada, para classificar os 8 fallbacks da medição auditada antes de atribuir causa à queda de 86% para 72% em intenção.
 2. Revalidar em amostra maior (50–100 chamados) antes de apresentar os números como definitivos à DXC.
 3. Se fizer ajuste de prompt para `indefinida`, medir em chamados novos — nunca reutilizar os 36 como critério de sucesso.

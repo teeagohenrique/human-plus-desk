@@ -14,8 +14,8 @@ from pathlib import Path
 
 from src import auditoria
 from src.config import carregar_env
-from src.llm import (obter_contador_triagem, rascunho_com_llm, resolver_provider,
-                     triagem_com_llm, zerar_contador_triagem)
+from src.llm import (obter_contador_fallback, obter_contador_triagem, rascunho_com_llm,
+                     resolver_provider, triagem_com_llm, zerar_contadores)
 from src.mascara import mascarar
 from src.percepcao import perceber
 
@@ -73,7 +73,7 @@ def demonstrar(provider: str | None = None) -> None:
 
 def avaliar(caminho: Path = DADOS, provider: str | None = None) -> dict:
     ativo = resolver_provider(provider)
-    zerar_contador_triagem()
+    zerar_contadores()
     acertos_i = acertos_u = 0
     chamados = carregar(caminho)
     for c in chamados:
@@ -86,13 +86,16 @@ def avaliar(caminho: Path = DADOS, provider: str | None = None) -> dict:
             print(f'{c["id"]}: previsto {t.intencao}/{t.urgencia} | gabarito {g["intencao"]}/{g["urgencia"]}')
     n = len(chamados)
     origem = obter_contador_triagem()
+    motivos = obter_contador_fallback()
     print(f"Origem: gemini={origem['gemini']} | regras={origem['regras']} | fallback={origem['fallback']}")
+    detalhes = ", ".join(f"{motivo}={qtd}" for motivo, qtd in motivos.items() if qtd) or "nenhum"
+    print(f"Fallbacks: {detalhes}")
     print(f"Arquivo: {Path(caminho).name} | Provider: {ativo} | "
           f"Intenção: {acertos_i}/{n} ({acertos_i/n:.0%}) | "
           f"Urgência: {acertos_u}/{n} ({acertos_u/n:.0%})")
     return {"arquivo": Path(caminho).name, "provider": ativo, "n": n,
             "acertos_intencao": acertos_i, "acertos_urgencia": acertos_u,
-            "origem": origem}
+            "origem": origem, "fallback_motivos": motivos}
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
