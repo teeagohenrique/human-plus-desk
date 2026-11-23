@@ -94,7 +94,13 @@ def _aba_visao_geral(m: dict, txt: dict, escuro: bool) -> None:
             .encode(
                 x=alt.X("chamados:Q", axis=alt.Axis(tickMinStep=1), title=txt["col_tickets"]),
                 y=alt.Y("urgencia:N", sort=ordem_nivel, title=None),
-                color=alt.Color("decisao:N", scale=escala, legend=alt.Legend(orient="bottom", title=None)),
+                color=alt.Color(
+                    "decisao:N",
+                    scale=escala,
+                    legend=alt.Legend(
+                        orient="bottom", title=None, labelLimit=240, labelOverlap="greedy"
+                    ),
+                ),
                 tooltip=[
                     alt.Tooltip("urgencia:N", title=txt["col_urgency"]),
                     alt.Tooltip("decisao:N", title=txt["col_decision"]),

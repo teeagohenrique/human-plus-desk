@@ -217,22 +217,22 @@ def test_render_card_cascata_revelacao_progressiva_e_recolhimento():
         assert "1 de 3" in html_1
         assert "Item 1" in html_1
         assert "Item 2" not in html_1 and "Item 3" not in html_1
-        assert mock_btn.call_args[0][0] == "Mostrar próximo (+1) ↓"
+        rotulos_1 = [c[0][0] for c in mock_btn.call_args_list]
+        assert rotulos_1 == ["Mostrar próximo (+1) ↓"]
         assert mock_btn.call_args[1]["key"] == "cascata_next_k3"
 
         # Avança para 2 de 3
         tema_dxc._avancar_cascata("cascata_visiveis_k3", 3)
         assert fake_state["cascata_visiveis_k3"] == 2
         mock_md.reset_mock()
-        col1.button.reset_mock()
-        col2.button.reset_mock()
+        mock_btn.reset_mock()
         tema_dxc.render_card_cascata("Evidências", itens, "k3")
         html_2 = " ".join(c[0][0] for c in mock_md.call_args_list)
         assert "2 de 3" in html_2
         assert "cascata-secondary" in html_2
         assert "Item 2" in html_2 and "Item 3" not in html_2
-        assert col1.button.call_args[0][0] == "Mostrar próximo (+1) ↓"
-        assert col2.button.call_args[0][0] == "Recolher ↑"
+        rotulos_2 = [c[0][0] for c in mock_btn.call_args_list]
+        assert rotulos_2 == ["Mostrar próximo (+1) ↓", "Recolher ↑"]
 
         # Avança para 3 de 3
         tema_dxc._avancar_cascata("cascata_visiveis_k3", 3)

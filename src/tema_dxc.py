@@ -464,6 +464,7 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         }}
         .cascata-item-top {{
             display: flex;
+            flex-wrap: wrap;
             align-items: flex-start;
             justify-content: space-between;
             gap: 8px;
@@ -676,21 +677,21 @@ def render_card_cascata(
             lbl_next = "Mostrar próximo (+1) ↓" if lang == "PT" else "Show next (+1) ↓"
             lbl_reset = "Recolher ↑" if lang == "PT" else "Collapse ↑"
             if visiveis < total and visiveis > 1:
-                col_next, col_reset = st.columns(2)
-                col_next.button(
-                    lbl_next,
-                    key=f"cascata_next_{chave_unica}",
-                    width="stretch",
-                    on_click=_avancar_cascata,
-                    args=(state_key, total),
-                )
-                col_reset.button(
-                    lbl_reset,
-                    key=f"cascata_reset_{chave_unica}",
-                    width="stretch",
-                    on_click=_recolher_cascata,
-                    args=(state_key,),
-                )
+                with st.container(horizontal=True):
+                    st.button(
+                        lbl_next,
+                        key=f"cascata_next_{chave_unica}",
+                        width="stretch",
+                        on_click=_avancar_cascata,
+                        args=(state_key, total),
+                    )
+                    st.button(
+                        lbl_reset,
+                        key=f"cascata_reset_{chave_unica}",
+                        width="stretch",
+                        on_click=_recolher_cascata,
+                        args=(state_key,),
+                    )
             elif visiveis < total:
                 st.button(
                     lbl_next,
