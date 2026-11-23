@@ -21,7 +21,7 @@ from src.calibracao import (
     carregar_config,
     propor_reducao,
 )
-from src.painel import calibracao_triagem, gerar_simulado, metricas
+from src.painel import calibracao_triagem, gerar_simulado, marcador_reabertura, metricas
 from src.tema_dxc import render_card_cascata
 from src.ui_comum import (
     CONFIG,
@@ -337,6 +337,20 @@ def _expander_auditoria(txt: dict) -> None:
             )
 
 
+def _marcadores_reabertura() -> list[dict]:
+    """Reaberturas do SQLite no formato de evento analítico do painel.
+
+    O Rafael registra a reabertura só no banco; o JSONL fica com as duas
+    decisões. Os marcadores delimitam qual decisão é a vigente sem apagar
+    nada da trilha e sem exigir migração dos dados já registrados.
+    """
+    return [
+        marcador_reabertura(ev["chamado_id"], ev["criado_em"])
+        for ev in repositorio.eventos()
+        if ev["acao"] == "reabriu"
+    ]
+
+
 def tela_rafael(provider: str, escuro: bool, txt: dict) -> None:
     st.markdown(f'<span class="hpd-eyebrow">{txt["eyebrow_rafael"]}</span>', unsafe_allow_html=True)
     st.title(txt["title_rafael"])
@@ -352,6 +366,8 @@ def tela_rafael(provider: str, escuro: bool, txt: dict) -> None:
     if usar_sim:
         st.warning(txt["sim_warn"])
     eventos = auditoria.ler(LOG_SIM if usar_sim else LOG)
+    if not usar_sim:
+        eventos = eventos + _marcadores_reabertura()
 
     m = metricas(eventos)
     if m["total"] == 0:

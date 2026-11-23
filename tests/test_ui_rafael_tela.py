@@ -56,6 +56,21 @@ def test_rafael_com_decisoes_mostra_kpis_e_abas(eventos_regras, itens_regras):
         ]
 
 
+def test_rafael_nao_conta_decisao_substituida_por_reabertura_do_banco(eventos_regras, itens_regras):
+    reabertura = {
+        "chamado_id": itens_regras[0].id,
+        "acao": "reabriu",
+        "agente": "Rafael",
+        "criado_em": "2099-01-01T00:00:00+00:00",
+        "detalhes": {"status_anterior": "concluido"},
+    }
+    with _tela(eventos_regras, itens_regras, eventos_db=[reabertura]) as at:
+        at.run(timeout=10)
+
+        assert not at.exception
+        assert at.metric[0].value == "1"  # eram 2 decisões; a anterior à reabertura não conta
+
+
 def test_rafael_auditoria_exibe_evento_com_agente_e_data(eventos_regras, itens_regras):
     chamado_id = itens_regras[0].id
     evento_db = {

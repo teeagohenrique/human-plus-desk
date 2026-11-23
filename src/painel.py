@@ -122,6 +122,41 @@ def eventos_analista(eventos: list[dict]) -> list[dict]:
     return [e for e in eventos if e["agente"] == "analista"]
 
 
+AGENTE_REABERTURA = "reabertura"
+
+
+def marcador_reabertura(chamado_id: str, quando: str) -> dict:
+    """Evento sintético no formato do log, usado só para delimitar decisões."""
+    return {
+        "quando": quando,
+        "chamado_id": chamado_id,
+        "agente": AGENTE_REABERTURA,
+        "saida": {"acao": "reabrir"},
+        "decisao_analista": "pendente",
+        "texto_final": None,
+    }
+
+
+def decisoes_vigentes(eventos: list[dict]) -> list[dict]:
+    """Decisões posteriores à última reabertura de cada chamado.
+
+    O JSONL é append-only: a decisão substituída permanece na trilha. Para fins
+    de métrica, porém, ela não pode ser contada junto com a vigente. Marcadores
+    de reabertura não são decisões e nunca entram na conta.
+    """
+    ultima: dict[str, str] = {}
+    for e in eventos:
+        if e.get("agente") == AGENTE_REABERTURA:
+            cid = e["chamado_id"]
+            quando = e.get("quando", "")
+            if cid not in ultima or quando > ultima[cid]:
+                ultima[cid] = quando
+    return [
+        e for e in eventos_analista(eventos)
+        if e["chamado_id"] not in ultima or e.get("quando", "") > ultima[e["chamado_id"]]
+    ]
+
+
 def ids_decididos(eventos: list[dict]) -> set[str]:
     return {e["chamado_id"] for e in eventos_analista(eventos)}
 
@@ -201,7 +236,7 @@ def registrar_decisao(log: Path, item: ItemFila, decisao: str, texto_final: str 
 
 
 def metricas(eventos: list[dict]) -> dict:
-    ev = eventos_analista(eventos)
+    ev = decisoes_vigentes(eventos)
     total = len(ev)
     decisoes = Counter(e["decisao_analista"] for e in ev)
     por_urgencia: dict[str, Counter] = {u: Counter() for u in ORDEM_URGENCIA}
@@ -225,7 +260,7 @@ def metricas(eventos: list[dict]) -> dict:
 
 def calibracao_triagem(eventos: list[dict]) -> dict:
     """Compara a urgência sugerida pela IA com a que a analista confirmou ou mudou."""
-    ev = [e for e in eventos_analista(eventos) if e["saida"].get("urgencia_analista") and not e["saida"].get("urgencia_automatica")]
+    ev = [e for e in decisoes_vigentes(eventos) if e["saida"].get("urgencia_analista") and not e["saida"].get("urgencia_automatica")]
     rank = ORDEM_URGENCIA  # menor número = mais urgente
     por_conf: dict[str, dict] = {}
     matriz = {u: {v: 0 for v in ORDEM_URGENCIA} for u in ORDEM_URGENCIA}

@@ -6,8 +6,10 @@ from src.painel import (
     calibracao_triagem,
     carregar_historico,
     decisao_por_texto,
+    decisoes_vigentes,
     gerar_simulado,
     ids_decididos,
+    marcador_reabertura,
     metricas,
     montar_fila,
     rascunho_adaptado,
@@ -74,6 +76,54 @@ def test_metricas_contam_corretamente(tmp_path):
 def test_metricas_sem_dados():
     m = metricas([])
     assert m["total"] == 0 and m["taxa_edicao"] == 0.0
+
+
+def _ev_decisao_reaberta(cid, quando, decisao="aprovou", ia="media", analista="alta"):
+    return {
+        "quando": quando, "chamado_id": cid, "agente": "analista",
+        "saida": {"urgencia": ia, "urgencia_analista": analista, "confianca_triagem": "media",
+                  "intencao": "acesso", "recorrente": False, "leitura": None, "leitura_livre": None},
+        "decisao_analista": decisao, "texto_final": None,
+    }
+
+
+def _sequencia_reaberta():
+    return [
+        _ev_decisao_reaberta("C15", "2026-11-23T15:51:43+00:00", "editou", ia="baixa", analista="alta"),
+        marcador_reabertura("C15", "2026-11-23T15:51:44+00:00"),
+        _ev_decisao_reaberta("C15", "2026-11-23T18:28:52+00:00", "rejeitou", ia="alta", analista="alta"),
+    ]
+
+
+def test_decisoes_vigentes_descarta_decisao_substituida():
+    vigentes = decisoes_vigentes(_sequencia_reaberta())
+    assert [e["decisao_analista"] for e in vigentes] == ["rejeitou"]
+
+
+def test_decisoes_vigentes_sem_reabertura_mantem_todas():
+    ev = [
+        _ev_decisao_reaberta("C1", "2026-11-23T10:00:00+00:00"),
+        _ev_decisao_reaberta("C1", "2026-11-23T11:00:00+00:00"),
+    ]
+    assert len(decisoes_vigentes(ev)) == 2  # simulado não emite marcador: nada é descartado
+
+
+def test_metricas_nao_duplicam_chamado_reaberto():
+    m = metricas(_sequencia_reaberta())
+    assert m["total"] == 1
+    assert m["decisoes"] == {"aprovou": 0, "editou": 0, "rejeitou": 1}
+
+
+def test_marcador_de_reabertura_nao_conta_como_decisao():
+    assert metricas([marcador_reabertura("C15", "2026-11-23T15:51:44+00:00")])["total"] == 0
+
+
+def test_calibracao_usa_apenas_decisao_vigente():
+    c = calibracao_triagem(_sequencia_reaberta())
+    assert c["n"] == 1 and c["concordancia"] == 1.0
+    assert c["subiu"] == 0 and c["desceu"] == 0
+    assert c["matriz"]["alta"]["alta"] == 1
+    assert c["matriz"]["baixa"]["alta"] == 0
 
 
 def test_simulado_e_reprodutivel_e_marcado(tmp_path):
