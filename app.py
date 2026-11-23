@@ -21,7 +21,7 @@ from src.painel import (calibracao_triagem, carregar_historico, decisao_por_text
                         registrar_decisao)
 from src.percepcao import LEITURAS
 from src.redator import _PLACEHOLDER
-from src.tema_dxc import I18N, get_text, render_dxc_logo, render_dxc_theme, render_language_selector
+from src.tema_dxc import I18N, render_dxc_logo, render_dxc_theme, render_language_selector
 
 RAIZ = Path(__file__).resolve().parent
 LOG = RAIZ / "data" / "painel_log.jsonl"
@@ -32,10 +32,6 @@ CONFIG = RAIZ / "data" / "calibracao_config.json"
 repositorio.init_db(concluidos=ids_decididos(auditoria.ler(LOG)))
 
 COR = {"alta": "🔴", "media": "🟠", "baixa": "🟢"}
-CORES_DECISAO = alt.Scale(
-    domain=["Aprovou", "Editou", "Rejeitou", "Approved", "Edited", "Rejected"],
-    range=["#10B981", "#7C3AED", "#F43F5E", "#10B981", "#7C3AED", "#F43F5E"],
-)
 DESTAQUE_ROXO = "#7C3AED"
 DESTAQUE_LARANJA = "#FF6B00"
 
@@ -43,8 +39,6 @@ UI = I18N  # alias de compatibilidade; fonte unica: src/tema_dxc.py
 
 carregar_env(RAIZ / ".env")
 st.set_page_config(page_title="Human + Desk", page_icon="💠", layout="wide", initial_sidebar_state="expanded")
-
-
 
 
 def _estilizar_grafico(chart: alt.Chart, escuro: bool = True) -> alt.Chart:
@@ -156,7 +150,7 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina"):
     esq, dir_ = st.columns([1.0, 2.3], gap="large")
 
     with esq:
-        with st.container(border=True):
+        with st.container(border=True, key="fila_bento_card"):
             st.markdown(f"##### {txt['queue']}")
             filtro = st.pills(
                 "Filtrar",
@@ -170,8 +164,14 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina"):
             if not fila:
                 st.info(txt["empty_filter"])
                 return
+            ativo_atual = st.session_state.get("chamado_ativo_fila")
+            if ativo_atual not in [i.id for i in fila]:
+                ativo_atual = fila[0].id
             rotulos = {
-                i.id: f"{COR[_urgencia_efetiva(i)]} {i.id} · {int_txt.get(i.triagem.intencao, i.triagem.intencao)}"
+                i.id: (
+                    f"{'→  ' if i.id == ativo_atual else ''}"
+                    f"{COR[_urgencia_efetiva(i)]} {i.id} · {int_txt.get(i.triagem.intencao, i.triagem.intencao)}"
+                )
                 for i in fila
             }
             escolhido = st.radio(
@@ -179,6 +179,7 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina"):
                 list(rotulos),
                 format_func=rotulos.get,
                 label_visibility="collapsed",
+                key="chamado_ativo_fila",
             )
 
     item = next(i for i in fila if i.id == escolhido)
@@ -280,14 +281,15 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina"):
                         if p.sugere_subir_urgencia:
                             st.warning(txt["raise_warn"])
 
-            st.button(
-                txt["go_2"],
-                type="primary",
-                width="stretch",
-                key=f"go2_{item.id}",
-                on_click=_ir_para_camada,
-                args=(item.id, "decisao"),
-            )
+            with st.container(key="cta_step_1"):
+                st.button(
+                    txt["go_2"],
+                    type="primary",
+                    width="stretch",
+                    key=f"go2_{item.id}",
+                    on_click=_ir_para_camada,
+                    args=(item.id, "decisao"),
+                )
 
         elif camada == "decisao":
             estado["viu_chamado"] = True
@@ -335,14 +337,16 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina"):
                     on_click=_ir_para_camada,
                     args=(item.id, "chamado"),
                 )
-                b2.button(
-                    txt["go_3"],
-                    type="primary",
-                    width="stretch",
-                    key=f"go3_{item.id}",
-                    on_click=_ir_para_camada,
-                    args=(item.id, "resposta"),
-                )
+                with b2:
+                    with st.container(key="cta_step_2"):
+                        st.button(
+                            txt["go_3"],
+                            type="primary",
+                            width="stretch",
+                            key=f"go3_{item.id}",
+                            on_click=_ir_para_camada,
+                            args=(item.id, "resposta"),
+                        )
 
         else:
             estado["viu_chamado"] = True
@@ -388,6 +392,12 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina"):
                                   "urgencia_analista": estado["urgencia"]},
                     )
                     st.session_state["estado_chamados"].pop(item.id, None)
+                    msg_ok = (
+                        f"Chamado {item.id} registrado na auditoria."
+                        if st.session_state.get("lang", "PT") == "PT"
+                        else f"Ticket {item.id} logged in audit."
+                    )
+                    st.toast(msg_ok)
                     st.rerun()
                 if c2.button(
                     txt["btn_reject"],
@@ -407,6 +417,12 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina"):
                                   "urgencia_analista": estado["urgencia"]},
                     )
                     st.session_state["estado_chamados"].pop(item.id, None)
+                    msg_rej = (
+                        f"Rejeição de {item.id} registrada na auditoria."
+                        if st.session_state.get("lang", "PT") == "PT"
+                        else f"Rejection of {item.id} logged in audit."
+                    )
+                    st.toast(msg_rej)
                     st.rerun()
 
 
@@ -431,8 +447,197 @@ def tela_rafael(provider: str, escuro: bool, txt: dict):
     else:
         eventos = auditoria.ler(LOG)
 
-    with st.container(border=True):
-        st.subheader(txt["db_title"])
+    m = metricas(eventos)
+    if m["total"] == 0:
+        st.info(txt["no_decisions"])
+    else:
+        c = st.columns(4)
+        c[0].metric("Decisões", m["total"])
+        c[1].metric("Editadas", f"{m['taxa_edicao']:.0%}")
+        c[2].metric("Rejeitadas", f"{m['taxa_rejeicao']:.0%}")
+        c[3].metric("Recorrentes", m["recorrentes"])
+
+        aba_geral, aba_leituras, aba_urgencia = st.tabs([
+            txt["tab_overview"],
+            txt["tab_readings"],
+            txt["tab_urgency"],
+        ])
+
+        ordem_dec = [dec_txt["aprovou"], dec_txt["editou"], dec_txt["rejeitou"]]
+        ordem_niv = [niveis_txt["alta"], niveis_txt["media"], niveis_txt["baixa"]]
+        escala_decisao = alt.Scale(domain=ordem_dec, range=["#10B981", "#7C3AED", "#F43F5E"])
+
+        with aba_geral:
+            g1, g2 = st.columns(2, gap="large")
+            with g1:
+                with st.container(border=True):
+                    st.markdown("#### Decisões da analista")
+                    df_dec = pd.DataFrame([{"Decisão": dec_txt[k], "Chamados": v} for k, v in m["decisoes"].items()])
+                    chart_dec = (
+                        alt.Chart(df_dec)
+                        .mark_bar(cornerRadiusEnd=4)
+                        .encode(
+                            x=alt.X("Chamados:Q", title="Chamados"),
+                            y=alt.Y("Decisão:N", sort=ordem_dec, title=None),
+                            color=alt.Color("Decisão:N", scale=escala_decisao, legend=None),
+                            tooltip=["Decisão", "Chamados"],
+                        )
+                        .properties(height=180)
+                    )
+                    st.altair_chart(_estilizar_grafico(chart_dec, escuro), width="stretch")
+
+            with g2:
+                with st.container(border=True):
+                    st.markdown("#### Decisão por urgência")
+                    linhas_u = [
+                        {"Urgência": niveis_txt[u], "Decisão": dec_txt[d], "Chamados": qtd}
+                        for u in ("alta", "media", "baixa")
+                        for d, qtd in m["por_urgencia"][u].items()
+                    ]
+                    chart_u = (
+                        alt.Chart(pd.DataFrame(linhas_u))
+                        .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+                        .encode(
+                            x=alt.X("Urgência:N", sort=ordem_niv, axis=alt.Axis(labelAngle=0), title=None),
+                            y=alt.Y("Chamados:Q", title="Chamados"),
+                            color=alt.Color("Decisão:N", scale=escala_decisao),
+                            tooltip=["Urgência", "Decisão", "Chamados"],
+                        )
+                        .properties(height=180)
+                    )
+                    st.altair_chart(_estilizar_grafico(chart_u, escuro), width="stretch")
+
+            g3, g4 = st.columns(2, gap="large")
+            with g3:
+                with st.container(border=True):
+                    st.markdown("#### Decisões por dia")
+                    df_dia = pd.DataFrame([{"Dia": k, "Decisões": v} for k, v in m["por_dia"].items()])
+                    chart_dia = (
+                        alt.Chart(df_dia)
+                        .mark_line(point=True, color=DESTAQUE_LARANJA, strokeWidth=2.5)
+                        .encode(
+                            x=alt.X("Dia:N", axis=alt.Axis(labelAngle=-25), title=None),
+                            y=alt.Y("Decisões:Q", title="Decisões"),
+                            tooltip=["Dia", "Decisões"],
+                        )
+                        .properties(height=210)
+                    )
+                    st.altair_chart(_estilizar_grafico(chart_dia, escuro), width="stretch")
+
+            with g4:
+                with st.container(border=True):
+                    st.markdown("#### Leituras escolhidas")
+                    if m["leituras"]:
+                        df_l = pd.DataFrame([{"Leitura": LEITURAS[k], "Vezes": v} for k, v in m["leituras"].items()])
+                        chart_l = (
+                            alt.Chart(df_l)
+                            .mark_bar(cornerRadiusEnd=4, color=DESTAQUE_ROXO)
+                            .encode(
+                                x=alt.X("Vezes:Q", title="Vezes"),
+                                y=alt.Y("Leitura:N", sort="-x", title=None, axis=alt.Axis(labelLimit=240)),
+                                tooltip=["Leitura", "Vezes"],
+                            )
+                            .properties(height=210)
+                        )
+                        st.altair_chart(_estilizar_grafico(chart_l, escuro), width="stretch")
+                        st.caption(f"{m['leituras_livres']} vez(es) a analista escreveu a própria leitura.")
+                    else:
+                        st.caption("Nenhuma leitura registrada ainda.")
+
+            st.caption("Poucas decisões = poucos dados: leia estes gráficos como indícios, não como conclusões.")
+
+        with aba_leituras:
+            config = carregar_config(CONFIG)
+            a = avaliar(eventos, config["ativas"])
+            st.progress(
+                min(1.0, a["respostas"] / MIN_DECISOES),
+                text=f"{a['respostas']} de {MIN_DECISOES} respostas necessárias para propor mudanças na lista",
+            )
+            if a["respostas"]:
+                df_cal = pd.DataFrame([{"Leitura": LEITURAS[k], "Uso": v} for k, v in a["uso"].items()])
+                chart_cal = (
+                    alt.Chart(df_cal)
+                    .mark_bar(cornerRadiusEnd=4, color=DESTAQUE_ROXO)
+                    .encode(
+                        x=alt.X("Uso:Q", axis=alt.Axis(format="%"), title="Participação nas respostas"),
+                        y=alt.Y("Leitura:N", sort="-x", title=None, axis=alt.Axis(labelLimit=260)),
+                        tooltip=[alt.Tooltip("Leitura:N"), alt.Tooltip("Uso:Q", format=".1%")],
+                    )
+                    .properties(height=220)
+                )
+                st.altair_chart(_estilizar_grafico(chart_cal, escuro), width="stretch")
+                st.caption(
+                    f"Leitura própria escrita pela analista: {a['share_livre']:.0%} "
+                    f"(acima de {LIMIAR_LIVRE:.0%} a lista não é reduzida). "
+                    f"Uma leitura só é proposta para sair se ficar abaixo de {LIMIAR_RARA:.0%}."
+                )
+            props, explicacao = propor_reducao(eventos, config)
+            st.info(explicacao)
+            for pr in props:
+                st.markdown(f"**Proposta:** retirar “{LEITURAS[pr.leitura]}”. {pr.motivo}")
+                if usar_sim:
+                    st.button("Aprovar (indisponível com dados simulados)", disabled=True, key="ap_sim")
+                elif st.button("Aprovar a retirada (gestor)", key=f"ap_{pr.leitura}", type="primary"):
+                    aprovar_reducao(CONFIG, pr.leitura, "Rafael", LOG)
+                    st.rerun()
+            st.caption("Leituras ativas hoje: " + ", ".join(LEITURAS[k] for k in config["ativas"]))
+
+        with aba_urgencia:
+            ct = calibracao_triagem(eventos)
+            if ct["n"] == 0:
+                st.info("Ainda não há urgências confirmadas pela analista.")
+            else:
+                k = st.columns(3)
+                k[0].metric("Concordância IA × analista", f"{ct['concordancia']:.0%}")
+                k[1].metric("Analista achou MAIS urgente", ct["subiu"], help="Erro mais crítico: a IA subestimou.")
+                k[2].metric("Analista achou MENOS urgente", ct["desceu"])
+                if ct["n"] < MIN_DECISOES:
+                    st.info(f"Informação insuficiente para concluir: {ct['n']} de {MIN_DECISOES} respostas.")
+
+                u1, u2 = st.columns(2, gap="large")
+                with u1:
+                    with st.container(border=True):
+                        st.markdown("#### Concordância por confiança da IA")
+                        linhas_c = [
+                            {
+                                "Confiança": niveis_txt[nivel],
+                                "Respostas": ct["por_confianca"][nivel]["n"],
+                                "Concordou": ct["por_confianca"][nivel]["concordou"],
+                                "Taxa": ct["por_confianca"][nivel]["taxa"],
+                            }
+                            for nivel in ("baixa", "media", "alta")
+                            if nivel in ct["por_confianca"]
+                        ]
+                        df_c = pd.DataFrame(linhas_c)
+                        if not df_c.empty:
+                            chart_c = (
+                                alt.Chart(df_c)
+                                .mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4, color=DESTAQUE_LARANJA)
+                                .encode(
+                                    x=alt.X("Confiança:N", sort=[niveis_txt["baixa"], niveis_txt["media"], niveis_txt["alta"]],
+                                            axis=alt.Axis(labelAngle=0), title=None),
+                                    y=alt.Y("Taxa:Q", scale=alt.Scale(domain=[0, 1]), axis=alt.Axis(format="%"), title="Concordância"),
+                                    tooltip=["Confiança", "Respostas", "Concordou", alt.Tooltip("Taxa:Q", format=".1%")],
+                                )
+                                .properties(height=190)
+                            )
+                            st.altair_chart(_estilizar_grafico(chart_c, escuro), width="stretch")
+                            df_tab = df_c.copy()
+                            df_tab["Taxa"] = df_tab["Taxa"].map(lambda x: f"{x:.1%}")
+                            st.dataframe(df_tab, hide_index=True, width="stretch")
+
+                with u2:
+                    with st.container(border=True):
+                        st.markdown("#### Matriz (IA sugeriu × Analista decidiu)")
+                        df_m = pd.DataFrame(ct["matriz"]).T
+                        df_m.index = [niveis_txt[i] for i in df_m.index]
+                        df_m.columns = [niveis_txt[c_] for c_ in df_m.columns]
+                        df_m.index.name = "IA sugeriu"
+                        st.dataframe(df_m, width="stretch")
+                        st.caption("A analista escolhe a urgência explicitamente (sem pré-seleção) para evitar concordância automática.")
+
+    st.divider()
+    with st.expander(txt["db_title"], expanded=False):
         st.caption(txt["db_caption"])
         concluidos_db = {
             cid: tk for cid, tk in repositorio.estado(repositorio.DATASET_FILA).items()
@@ -461,195 +666,6 @@ def tela_rafael(provider: str, escuro: bool, txt: dict):
                     f"`{ev['criado_em'][:19]}` · **{ev['chamado_id']}** · "
                     f"{ev['acao']} · {ev['agente']}"
                 )
-
-    m = metricas(eventos)
-    if m["total"] == 0:
-        st.info(txt["no_decisions"])
-        return
-
-    c = st.columns(4)
-    c[0].metric("Decisões", m["total"])
-    c[1].metric("Editadas", f"{m['taxa_edicao']:.0%}")
-    c[2].metric("Rejeitadas", f"{m['taxa_rejeicao']:.0%}")
-    c[3].metric("Recorrentes", m["recorrentes"])
-
-    aba_geral, aba_leituras, aba_urgencia = st.tabs([
-        txt["tab_overview"],
-        txt["tab_readings"],
-        txt["tab_urgency"],
-    ])
-
-    ordem_dec = [dec_txt["aprovou"], dec_txt["editou"], dec_txt["rejeitou"]]
-    ordem_niv = [niveis_txt["alta"], niveis_txt["media"], niveis_txt["baixa"]]
-
-    with aba_geral:
-        g1, g2 = st.columns(2, gap="large")
-        with g1:
-            with st.container(border=True):
-                st.markdown("#### Decisões da analista")
-                df_dec = pd.DataFrame([{"Decisão": dec_txt[k], "Chamados": v} for k, v in m["decisoes"].items()])
-                chart_dec = (
-                    alt.Chart(df_dec)
-                    .mark_bar(cornerRadiusEnd=4)
-                    .encode(
-                        x=alt.X("Chamados:Q", title="Chamados"),
-                        y=alt.Y("Decisão:N", sort=ordem_dec, title=None),
-                        color=alt.Color("Decisão:N", scale=CORES_DECISAO, legend=None),
-                        tooltip=["Decisão", "Chamados"],
-                    )
-                    .properties(height=180)
-                )
-                st.altair_chart(_estilizar_grafico(chart_dec, escuro), width="stretch")
-
-        with g2:
-            with st.container(border=True):
-                st.markdown("#### Decisão por urgência")
-                linhas_u = [
-                    {"Urgência": niveis_txt[u], "Decisão": dec_txt[d], "Chamados": qtd}
-                    for u in ("alta", "media", "baixa")
-                    for d, qtd in m["por_urgencia"][u].items()
-                ]
-                chart_u = (
-                    alt.Chart(pd.DataFrame(linhas_u))
-                    .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
-                    .encode(
-                        x=alt.X("Urgência:N", sort=ordem_niv, axis=alt.Axis(labelAngle=0), title=None),
-                        y=alt.Y("Chamados:Q", title="Chamados"),
-                        color=alt.Color("Decisão:N", scale=CORES_DECISAO),
-                        tooltip=["Urgência", "Decisão", "Chamados"],
-                    )
-                    .properties(height=180)
-                )
-                st.altair_chart(_estilizar_grafico(chart_u, escuro), width="stretch")
-
-        g3, g4 = st.columns(2, gap="large")
-        with g3:
-            with st.container(border=True):
-                st.markdown("#### Decisões por dia")
-                df_dia = pd.DataFrame([{"Dia": k, "Decisões": v} for k, v in m["por_dia"].items()])
-                chart_dia = (
-                    alt.Chart(df_dia)
-                    .mark_line(point=True, color=DESTAQUE_LARANJA, strokeWidth=2.5)
-                    .encode(
-                        x=alt.X("Dia:N", axis=alt.Axis(labelAngle=-25), title=None),
-                        y=alt.Y("Decisões:Q", title="Decisões"),
-                        tooltip=["Dia", "Decisões"],
-                    )
-                    .properties(height=210)
-                )
-                st.altair_chart(_estilizar_grafico(chart_dia, escuro), width="stretch")
-
-        with g4:
-            with st.container(border=True):
-                st.markdown("#### Leituras escolhidas")
-                if m["leituras"]:
-                    df_l = pd.DataFrame([{"Leitura": LEITURAS[k], "Vezes": v} for k, v in m["leituras"].items()])
-                    chart_l = (
-                        alt.Chart(df_l)
-                        .mark_bar(cornerRadiusEnd=4, color=DESTAQUE_ROXO)
-                        .encode(
-                            x=alt.X("Vezes:Q", title="Vezes"),
-                            y=alt.Y("Leitura:N", sort="-x", title=None, axis=alt.Axis(labelLimit=240)),
-                            tooltip=["Leitura", "Vezes"],
-                        )
-                        .properties(height=210)
-                    )
-                    st.altair_chart(_estilizar_grafico(chart_l, escuro), width="stretch")
-                    st.caption(f"{m['leituras_livres']} vez(es) a analista escreveu a própria leitura.")
-                else:
-                    st.caption("Nenhuma leitura registrada ainda.")
-
-        st.caption("Poucas decisões = poucos dados: leia estes gráficos como indícios, não como conclusões.")
-
-    with aba_leituras:
-        config = carregar_config(CONFIG)
-        a = avaliar(eventos, config["ativas"])
-        st.progress(
-            min(1.0, a["respostas"] / MIN_DECISOES),
-            text=f"{a['respostas']} de {MIN_DECISOES} respostas necessárias para propor mudanças na lista",
-        )
-        if a["respostas"]:
-            df_cal = pd.DataFrame([{"Leitura": LEITURAS[k], "Uso": v} for k, v in a["uso"].items()])
-            chart_cal = (
-                alt.Chart(df_cal)
-                .mark_bar(cornerRadiusEnd=4, color=DESTAQUE_ROXO)
-                .encode(
-                    x=alt.X("Uso:Q", axis=alt.Axis(format="%"), title="Participação nas respostas"),
-                    y=alt.Y("Leitura:N", sort="-x", title=None, axis=alt.Axis(labelLimit=260)),
-                    tooltip=[alt.Tooltip("Leitura:N"), alt.Tooltip("Uso:Q", format=".1%")],
-                )
-                .properties(height=220)
-            )
-            st.altair_chart(_estilizar_grafico(chart_cal, escuro), width="stretch")
-            st.caption(
-                f"Leitura própria escrita pela analista: {a['share_livre']:.0%} "
-                f"(acima de {LIMIAR_LIVRE:.0%} a lista não é reduzida). "
-                f"Uma leitura só é proposta para sair se ficar abaixo de {LIMIAR_RARA:.0%}."
-            )
-        props, explicacao = propor_reducao(eventos, config)
-        st.info(explicacao)
-        for pr in props:
-            st.markdown(f"**Proposta:** retirar “{LEITURAS[pr.leitura]}”. {pr.motivo}")
-            if usar_sim:
-                st.button("Aprovar (indisponível com dados simulados)", disabled=True, key="ap_sim")
-            elif st.button("Aprovar a retirada (gestor)", key=f"ap_{pr.leitura}", type="primary"):
-                aprovar_reducao(CONFIG, pr.leitura, "Rafael", LOG)
-                st.rerun()
-        st.caption("Leituras ativas hoje: " + ", ".join(LEITURAS[k] for k in config["ativas"]))
-
-    with aba_urgencia:
-        ct = calibracao_triagem(eventos)
-        if ct["n"] == 0:
-            st.info("Ainda não há urgências confirmadas pela analista.")
-        else:
-            k = st.columns(3)
-            k[0].metric("Concordância IA × analista", f"{ct['concordancia']:.0%}")
-            k[1].metric("Analista achou MAIS urgente", ct["subiu"], help="Erro mais crítico: a IA subestimou.")
-            k[2].metric("Analista achou MENOS urgente", ct["desceu"])
-            if ct["n"] < MIN_DECISOES:
-                st.info(f"Informação insuficiente para concluir: {ct['n']} de {MIN_DECISOES} respostas.")
-
-            u1, u2 = st.columns(2, gap="large")
-            with u1:
-                with st.container(border=True):
-                    st.markdown("#### Concordância por confiança da IA")
-                    linhas_c = [
-                        {
-                            "Confiança": niveis_txt[nivel],
-                            "Respostas": ct["por_confianca"][nivel]["n"],
-                            "Concordou": ct["por_confianca"][nivel]["concordou"],
-                            "Taxa": ct["por_confianca"][nivel]["taxa"],
-                        }
-                        for nivel in ("baixa", "media", "alta")
-                        if nivel in ct["por_confianca"]
-                    ]
-                    df_c = pd.DataFrame(linhas_c)
-                    if not df_c.empty:
-                        chart_c = (
-                            alt.Chart(df_c)
-                            .mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4, color=DESTAQUE_LARANJA)
-                            .encode(
-                                x=alt.X("Confiança:N", sort=[niveis_txt["baixa"], niveis_txt["media"], niveis_txt["alta"]],
-                                        axis=alt.Axis(labelAngle=0), title=None),
-                                y=alt.Y("Taxa:Q", scale=alt.Scale(domain=[0, 1]), axis=alt.Axis(format="%"), title="Concordância"),
-                                tooltip=["Confiança", "Respostas", "Concordou", alt.Tooltip("Taxa:Q", format=".1%")],
-                            )
-                            .properties(height=190)
-                        )
-                        st.altair_chart(_estilizar_grafico(chart_c, escuro), width="stretch")
-                        df_tab = df_c.copy()
-                        df_tab["Taxa"] = df_tab["Taxa"].map(lambda x: f"{x:.1%}")
-                        st.dataframe(df_tab, hide_index=True, width="stretch")
-
-            with u2:
-                with st.container(border=True):
-                    st.markdown("#### Matriz (IA sugeriu × Analista decidiu)")
-                    df_m = pd.DataFrame(ct["matriz"]).T
-                    df_m.index = [niveis_txt[i] for i in df_m.index]
-                    df_m.columns = [niveis_txt[c_] for c_ in df_m.columns]
-                    df_m.index.name = "IA sugeriu"
-                    st.dataframe(df_m, width="stretch")
-                    st.caption("A analista escolhe a urgência explicitamente (sem pré-seleção) para evitar concordância automática.")
 
     st.divider()
     with st.expander("Visão futura (desligado no MVP): Portão de Autonomia"):

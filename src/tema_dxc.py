@@ -218,8 +218,12 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         eyebrow_bd = "rgba(217, 43, 107, 0.42)"
         chip_bg = "#151822"
         bg_widget = "#1A1E2B"
-        bg_active = "rgba(124, 58, 237, 0.25)"
-        fg_active = "#F8FAFC"
+        bg_header = "rgba(14, 16, 23, 0.88)"
+        bg_alert = "#151822"
+        bg_active = "rgba(124, 58, 237, 0.32)"
+        fg_active = "#FFFFFF"
+        radio_off_bg = "#1A1E2B"
+        step_cta_bg = "linear-gradient(90deg, #4F2D7F 0%, #B82968 50%, #FF6B00 100%)"
         pend_fg, alert_fg, done_fg = "#FDE68A", "#FDA4AF", "#A7F3D0"
         btn_dis_bg, btn_dis_fg = "#252A3D", "#64748B"
     else:
@@ -240,8 +244,12 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         eyebrow_bd = "rgba(91, 44, 152, 0.26)"
         chip_bg = "#FFFFFF"
         bg_widget = "#FFFFFF"
-        bg_active = "rgba(91, 44, 152, 0.12)"
-        fg_active = "#4F2D7F"
+        bg_header = "rgba(248, 250, 252, 0.92)"
+        bg_alert = "#F1F5F9"
+        bg_active = "rgba(91, 44, 152, 0.16)"
+        fg_active = "#3B1C6E"
+        radio_off_bg = "#FFFFFF"
+        step_cta_bg = "#4F2D7F"
         pend_fg, alert_fg, done_fg = "#B45309", "#BE123C", "#047857"
         btn_dis_bg, btn_dis_fg = "#E2E8F0", "#94A3B8"
 
@@ -256,7 +264,8 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
             font-family: 'Inter', sans-serif;
         }}
         header[data-testid="stHeader"] {{
-            background: transparent !important;
+            background: {bg_header} !important;
+            backdrop-filter: blur(6px);
         }}
         header[data-testid="stHeader"] * {{
             color: {txt_main} !important;
@@ -291,17 +300,30 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         button[kind="pills"] * {{
             color: {txt_main} !important;
         }}
+        button[kind="secondary"]:disabled {{
+            background-color: {btn_dis_bg} !important;
+            color: {btn_dis_fg} !important;
+            opacity: 0.55 !important;
+            cursor: not-allowed !important;
+        }}
+        button[kind="secondary"]:disabled * {{
+            color: {btn_dis_fg} !important;
+        }}
         div[data-testid="stButtonGroup"] button[aria-pressed="true"],
+        div[data-testid="stButtonGroup"] button[data-testid*="Active"],
         button[kind="segmented_controlActive"],
         button[kind="pillsActive"] {{
             background-color: {bg_active} !important;
             color: {fg_active} !important;
-            border: 1px solid #7C3AED !important;
+            border: 2px solid #7C3AED !important;
+            font-weight: 600 !important;
         }}
         div[data-testid="stButtonGroup"] button[aria-pressed="true"] *,
+        div[data-testid="stButtonGroup"] button[data-testid*="Active"] *,
         button[kind="segmented_controlActive"] *,
         button[kind="pillsActive"] * {{
             color: {fg_active} !important;
+            font-weight: 600 !important;
         }}
         div[data-testid="stPopover"] button {{
             min-width: 82px !important;
@@ -315,7 +337,8 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
             color: {txt_main} !important;
             border-color: {border_card} !important;
         }}
-        div[data-baseweb="select"] * {{
+        div[data-baseweb="select"] *,
+        div[data-baseweb="select"] button {{
             background-color: transparent !important;
         }}
         div[data-baseweb="select"] > div {{
@@ -326,13 +349,55 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         div[data-baseweb="select"] svg {{
             fill: {txt_main} !important;
         }}
-        div[data-testid="stAlert"] {{
-            background-color: {bg_side} !important;
+        /* Alertas (st.info / st.warning / st.success) legíveis no Claro e Escuro */
+        div[data-testid="stAlert"],
+        div[data-testid="stAlert"] > div,
+        div[data-testid="stAlert"] > div > div,
+        div[data-testid="stAlertContainer"],
+        div[data-testid="stNotification"],
+        div[data-testid="stNotification"] > div,
+        div[role="alert"],
+        div[role="alert"] > div {{
+            background-color: {bg_alert} !important;
+            color: {txt_main} !important;
+            border-radius: 10px !important;
+        }}
+        div[data-testid="stAlert"],
+        div[data-testid="stNotification"] {{
             border: 1px solid {border_card} !important;
+        }}
+        div[data-testid="stAlert"] *,
+        div[data-testid="stNotification"] *,
+        div[role="alert"] * {{
             color: {txt_main} !important;
         }}
-        div[data-testid="stAlert"] * {{
-            color: {txt_main} !important;
+        /* Bolinhas de radio não selecionadas no modo Claro */
+        div[role="radiogroup"] label > div:first-child {{
+            background-color: {radio_off_bg} !important;
+            border-color: {border_card} !important;
+        }}
+        /* Alinhamento simétrico da fila + micro-feedback (deslocamento + seta) no item ativo */
+        .st-key-fila_bento_card {{
+            min-height: 460px;
+        }}
+        .st-key-fila_bento_card div[role="radiogroup"] label {{
+            padding: 5px 10px;
+            border-radius: 8px;
+            border-left: 3px solid transparent;
+            transition: padding-left 0.15s ease, background-color 0.15s ease;
+            width: 100%;
+        }}
+        .st-key-fila_bento_card div[role="radiogroup"] label:has(input:checked) {{
+            background-color: {bg_active} !important;
+            border-left: 3px solid #7C3AED !important;
+            padding-left: 15px !important;
+            font-weight: 600 !important;
+        }}
+        .st-key-fila_bento_card div[role="radiogroup"] label:has(input:checked)::after {{
+            content: "→";
+            margin-left: auto;
+            color: #7C3AED;
+            font-weight: 700;
         }}
         div[data-baseweb="popover"],
         div[data-baseweb="popover"] > div,
@@ -356,7 +421,11 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
             border: 1px solid {border_card};
             border-radius: 10px;
             padding: 14px 18px;
-            min-height: 82px;
+            min-height: 92px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
             position: relative;
             overflow: hidden;
             box-shadow: {shadow};
@@ -405,6 +474,13 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
             font-family: 'Space Grotesk', sans-serif !important;
             font-weight: 600 !important;
         }}
+        /* Passos intermediários (1 e 2): roxo sólido #4F2D7F no Claro; degradê completo reservado ao Passo 3 */
+        div[class*="st-key-go2_"] button[kind="primary"],
+        div[class*="st-key-go3_"] button[kind="primary"],
+        .st-key-cta_step_1 button[kind="primary"],
+        .st-key-cta_step_2 button[kind="primary"] {{
+            background: {step_cta_bg} !important;
+        }}
         button[kind="primary"] * {{ color: #FFFFFF !important; }}
         button[kind="primary"]:disabled {{
             background: {btn_dis_bg} !important;
@@ -418,6 +494,7 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
             border-radius: 999px; padding: 3px 10px; margin-bottom: 6px; font-weight: 600;
         }}
         #MainMenu {{ visibility: hidden; }}
+        [data-testid="stAppDeployButton"] {{ display: none; }}
         </style>
         """,
         unsafe_allow_html=True,
