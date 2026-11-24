@@ -1,0 +1,817 @@
+{
+  "aviso": "RASCUNHO FICTÍCIO: todo o conteúdo deste acervo foi escrito pela IA como ponto de partida para a simulação e precisa ser revisado pela pessoa dona do projeto. Nenhum sistema, procedimento ou tempo abaixo é real. 'solucao_provisoria' completa a frase 'recomendamos utilizar ...' e NÃO contém prazo (o prazo é sempre da analista). 'tabela_tempo' lista cenários com faixa de tempo em minutos, apenas como apoio de estimativa à analista.",
+  "materiais": [
+    {
+      "id": "M01",
+      "titulo": "Sistemas Corporativos: instabilidade e indisponibilidade",
+      "resumo": "Guia para falhas em sistemas de uso diário (faturamento, folha, e-mail) que impedem a entrega de uma tarefa com prazo.",
+      "topicos": [
+        {
+          "id": "M01-T01",
+          "titulo": "Faturamento travando ou fora do ar",
+          "intencoes": [
+            "falha_sistema"
+          ],
+          "problema": "O sistema de faturamento trava ou fecha durante o fechamento do mês e a equipe financeira não consegue emitir ou conferir lançamentos.",
+          "palavras_chave": [
+            "faturamento",
+            "travou",
+            "travando",
+            "fechar o mês",
+            "fechamento",
+            "lançamento",
+            "financeiro"
+          ],
+          "solucao_provisoria": "acesso alternativo ao módulo de faturamento pela versão web de contingência",
+          "passos": [
+            "Confirmar com o cliente se o travamento ocorre em uma máquina só ou em várias.",
+            "Orientar o acesso ao módulo de faturamento pela versão web de contingência, com o mesmo usuário e senha.",
+            "Pedir que o cliente salve o que já foi lançado antes de trocar de acesso.",
+            "Encaminhar à equipe técnica o horário aproximado das falhas e a mensagem exibida na tela."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 45,
+              "max": 110
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 110,
+              "max": 180
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 180,
+              "max": 360
+            }
+          ]
+        },
+        {
+          "id": "M01-T02",
+          "titulo": "Folha de pagamento com erro na geração de holerites",
+          "intencoes": [
+            "falha_sistema"
+          ],
+          "problema": "O sistema de folha apresenta erro ao gerar holerites ou o arquivo de pagamento perto do horário de envio ao banco.",
+          "palavras_chave": [
+            "folha",
+            "pagamento",
+            "holerite",
+            "holerites",
+            "contracheque",
+            "erro ao gerar"
+          ],
+          "solucao_provisoria": "geração dos holerites em lote pelo módulo de exportação, em formato de planilha",
+          "passos": [
+            "Registrar a mensagem de erro exata e em qual etapa da geração ela aparece.",
+            "Orientar a geração em lote pelo módulo de exportação, em formato de planilha, para conferência.",
+            "Avisar que a conferência manual deve ser feita pelo setor responsável antes de qualquer envio.",
+            "Encaminhar à equipe técnica para correção do módulo original."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 60,
+              "max": 150
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 150,
+              "max": 240
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 240,
+              "max": 480
+            }
+          ]
+        },
+        {
+          "id": "M01-T03",
+          "titulo": "E-mail corporativo sem abrir ou sem enviar",
+          "intencoes": [
+            "falha_sistema"
+          ],
+          "problema": "O cliente de e-mail não abre ou não envia mensagens, e há mensagem com anexo (por exemplo, uma proposta) a ser enviada em horário definido.",
+          "palavras_chave": [
+            "e-mail",
+            "email",
+            "não abre",
+            "proposta",
+            "anexo",
+            "caixa de entrada",
+            "outlook"
+          ],
+          "solucao_provisoria": "webmail corporativo pelo navegador",
+          "passos": [
+            "Confirmar se o problema é só no aplicativo instalado ou também no navegador.",
+            "Orientar o acesso ao webmail corporativo pelo navegador, com as mesmas credenciais.",
+            "Se for urgente, oferecer o envio do anexo por canal interno, mediante aprovação da supervisão.",
+            "Encaminhar à equipe técnica a recorrência do problema, caso já tenha ocorrido antes."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 30,
+              "max": 75
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 75,
+              "max": 120
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 120,
+              "max": 240
+            }
+          ]
+        },
+        {
+          "id": "M01-T04",
+          "titulo": "Relatórios com dados desatualizados",
+          "intencoes": [
+            "falha_sistema"
+          ],
+          "problema": "Os relatórios gerenciais mostram números de dias anteriores e a equipe precisa deles para uma reunião ou entrega.",
+          "palavras_chave": [
+            "relatório",
+            "relatorio",
+            "desatualizado",
+            "dados antigos",
+            "painel",
+            "reunião",
+            "números"
+          ],
+          "solucao_provisoria": "extração manual dos dados pelo módulo de consulta direta",
+          "passos": [
+            "Confirmar qual relatório e qual data aparece como última atualização.",
+            "Orientar a extração manual pelo módulo de consulta direta, em planilha.",
+            "Avisar que os números extraídos devem ser conferidos pelo responsável do setor.",
+            "Encaminhar à equipe técnica a falha na atualização automática."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 60,
+              "max": 150
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 150,
+              "max": 240
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 240,
+              "max": 480
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M02",
+      "titulo": "Acessos e Credenciais",
+      "resumo": "Guia para bloqueio de usuário, senha esquecida e liberação de acesso a sistemas e pastas.",
+      "topicos": [
+        {
+          "id": "M02-T01",
+          "titulo": "Senha esquecida ou usuário bloqueado",
+          "intencoes": [
+            "acesso"
+          ],
+          "problema": "O cliente não consegue entrar no portal porque esqueceu a senha ou o usuário foi bloqueado após tentativas incorretas.",
+          "palavras_chave": [
+            "senha",
+            "esqueci",
+            "bloqueado",
+            "bloqueio",
+            "desbloquear",
+            "novo acesso",
+            "portal",
+            "usuário"
+          ],
+          "solucao_provisoria": "redefinição de senha pelo link de autoatendimento do portal",
+          "passos": [
+            "Confirmar a identidade do cliente pelos dados cadastrais já registrados.",
+            "Orientar a redefinição pelo link de autoatendimento do portal.",
+            "Se o usuário estiver bloqueado, solicitar o desbloqueio à equipe de acessos.",
+            "Pedir que o cliente confirme se conseguiu entrar após a redefinição."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 10,
+              "max": 30
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 30,
+              "max": 45
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 45,
+              "max": 90
+            }
+          ]
+        },
+        {
+          "id": "M02-T02",
+          "titulo": "Sem acesso ao ERP (equipe parada)",
+          "intencoes": [
+            "acesso",
+            "falha_sistema"
+          ],
+          "problema": "Uma equipe inteira perde o acesso ao ERP e não consegue emitir notas fiscais ou atender clientes.",
+          "palavras_chave": [
+            "erp",
+            "sem acesso",
+            "nota fiscal",
+            "emitir",
+            "parados",
+            "comercial",
+            "equipe"
+          ],
+          "solucao_provisoria": "acesso ao ERP por um usuário de contingência do setor",
+          "passos": [
+            "Confirmar quantas pessoas estão afetadas e desde quando.",
+            "Verificar se há aviso de manutenção ou indisponibilidade geral registrado.",
+            "Liberar, com aprovação da supervisão, um usuário de contingência do setor para as emissões mais urgentes.",
+            "Encaminhar à equipe técnica como incidente de impacto coletivo."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 30,
+              "max": 90
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 90,
+              "max": 150
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 150,
+              "max": 300
+            }
+          ]
+        },
+        {
+          "id": "M02-T03",
+          "titulo": "Liberação de acesso a pasta compartilhada",
+          "intencoes": [
+            "acesso",
+            "solicitacao"
+          ],
+          "problema": "O cliente pede acesso de outra pessoa a uma pasta compartilhada, como a do RH, dentro de um prazo combinado.",
+          "palavras_chave": [
+            "pasta",
+            "compartilhada",
+            "liberar acesso",
+            "rh",
+            "permissão",
+            "permissao"
+          ],
+          "solucao_provisoria": "compartilhamento temporário de arquivos específicos por link com validade",
+          "passos": [
+            "Confirmar quem é a pessoa e qual pasta deve ser acessada.",
+            "Verificar se o solicitante tem autorização do gestor da pasta.",
+            "Se necessário, compartilhar apenas os arquivos pedidos por link com validade, até a liberação definitiva.",
+            "Abrir a solicitação de permissão à equipe de acessos."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 60,
+              "max": 270
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 270,
+              "max": 480
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 480,
+              "max": 960
+            }
+          ]
+        },
+        {
+          "id": "M02-T04",
+          "titulo": "Código de verificação em duas etapas não chega",
+          "intencoes": [
+            "acesso"
+          ],
+          "problema": "O cliente não recebe o código de verificação (SMS ou aplicativo) e não consegue concluir o login.",
+          "palavras_chave": [
+            "código",
+            "codigo",
+            "verificação",
+            "duas etapas",
+            "sms",
+            "token",
+            "autenticação"
+          ],
+          "solucao_provisoria": "código de recuperação gerado previamente na conta",
+          "passos": [
+            "Confirmar o método de verificação cadastrado e se o aparelho está com sinal ou hora correta.",
+            "Orientar o uso do código de recuperação gerado previamente, se houver.",
+            "Sem código de recuperação, solicitar à equipe de acessos a redefinição do método de verificação.",
+            "Pedir que o cliente atualize o telefone cadastrado depois de entrar."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 15,
+              "max": 50
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 50,
+              "max": 90
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 90,
+              "max": 180
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M03",
+      "titulo": "Conectividade e Desempenho",
+      "resumo": "Guia para quedas de VPN, rede instável e lentidão generalizada dos sistemas.",
+      "topicos": [
+        {
+          "id": "M03-T01",
+          "titulo": "VPN caindo repetidamente",
+          "intencoes": [
+            "falha_sistema"
+          ],
+          "problema": "A VPN desconecta várias vezes no mesmo dia e o cliente fica sem acesso aos sistemas internos.",
+          "palavras_chave": [
+            "vpn",
+            "caiu",
+            "caindo",
+            "desconecta",
+            "remoto",
+            "sem conseguir trabalhar",
+            "conexão"
+          ],
+          "solucao_provisoria": "acesso remoto pelo portal web seguro, sem depender da VPN",
+          "passos": [
+            "Confirmar se a queda ocorre com outros usuários ou só com este cliente.",
+            "Orientar o acesso pelo portal web seguro, sem VPN, aos sistemas mais necessários.",
+            "Sugerir trocar de rede (por exemplo, compartilhar a conexão do celular) para testar.",
+            "Encaminhar à equipe de redes com os horários das quedas."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 30,
+              "max": 75
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 75,
+              "max": 120
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 120,
+              "max": 240
+            }
+          ]
+        },
+        {
+          "id": "M03-T02",
+          "titulo": "Sistema lento, mas operando",
+          "intencoes": [
+            "falha_sistema"
+          ],
+          "problema": "Os sistemas respondem mais devagar que o normal, sem impedir o trabalho.",
+          "palavras_chave": [
+            "lento",
+            "lentidão",
+            "demora",
+            "devagar",
+            "travando um pouco"
+          ],
+          "solucao_provisoria": "execução das tarefas mais pesadas fora do horário de pico",
+          "passos": [
+            "Confirmar se a lentidão atinge um sistema só ou todos.",
+            "Orientar o fechamento de abas e programas que não estão em uso.",
+            "Sugerir deixar relatórios e processamentos longos para fora do horário de pico.",
+            "Registrar a ocorrência para acompanhamento, sem urgência."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 60,
+              "max": 210
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 210,
+              "max": 360
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 360,
+              "max": 720
+            }
+          ]
+        },
+        {
+          "id": "M03-T03",
+          "titulo": "Wi-Fi do escritório instável",
+          "intencoes": [
+            "falha_sistema"
+          ],
+          "problema": "A rede sem fio do escritório cai ou fica sem internet para um grupo de pessoas.",
+          "palavras_chave": [
+            "wifi",
+            "wi-fi",
+            "rede",
+            "internet",
+            "sem internet",
+            "cai",
+            "sinal"
+          ],
+          "solucao_provisoria": "conexão por cabo de rede no ponto mais próximo",
+          "passos": [
+            "Confirmar quantas pessoas e quais áreas do escritório estão afetadas.",
+            "Orientar a conexão por cabo de rede, quando houver ponto disponível.",
+            "Sugerir aproximar-se do roteador ou trocar para a rede alternativa do andar.",
+            "Encaminhar à equipe de redes como falha de infraestrutura."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 30,
+              "max": 105
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 105,
+              "max": 180
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 180,
+              "max": 360
+            }
+          ]
+        },
+        {
+          "id": "M03-T04",
+          "titulo": "Videoconferência sem áudio ou vídeo",
+          "intencoes": [
+            "falha_sistema",
+            "duvida"
+          ],
+          "problema": "O cliente não consegue usar microfone, câmera ou som em uma reunião marcada.",
+          "palavras_chave": [
+            "videoconferência",
+            "reunião",
+            "microfone",
+            "câmera",
+            "áudio",
+            "audio",
+            "som",
+            "chamada"
+          ],
+          "solucao_provisoria": "entrada na reunião pelo telefone, usando o número de discagem do convite",
+          "passos": [
+            "Confirmar o aplicativo usado e se o aparelho aparece nas configurações de áudio e vídeo.",
+            "Orientar a verificação das permissões de microfone e câmera no navegador ou aplicativo.",
+            "Se a reunião estiver próxima, orientar a entrada por telefone, pelo número de discagem do convite.",
+            "Registrar a ocorrência para suporte ao equipamento, se persistir."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 10,
+              "max": 35
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 35,
+              "max": 60
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 60,
+              "max": 120
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M04",
+      "titulo": "Equipamentos e Instalações",
+      "resumo": "Guia para periféricos com defeito e pedidos de instalação de software.",
+      "topicos": [
+        {
+          "id": "M04-T01",
+          "titulo": "Impressora de setor parada",
+          "intencoes": [
+            "falha_sistema"
+          ],
+          "problema": "A impressora de um andar ou setor para de funcionar e a equipe precisa imprimir documentos para um compromisso no mesmo dia, como uma auditoria.",
+          "palavras_chave": [
+            "impressora",
+            "imprimir",
+            "impressão",
+            "auditoria",
+            "andar",
+            "setor parado"
+          ],
+          "solucao_provisoria": "impressora de outro andar, já habilitada para o setor",
+          "passos": [
+            "Confirmar o andar e o modelo da impressora e se há mensagem no visor.",
+            "Indicar a impressora de outro andar habilitada para o setor como alternativa.",
+            "Se for possível, orientar a geração dos documentos em PDF para impressão posterior.",
+            "Abrir chamado para a equipe de suporte de campo."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 60,
+              "max": 150
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 150,
+              "max": 240
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 240,
+              "max": 480
+            }
+          ]
+        },
+        {
+          "id": "M04-T02",
+          "titulo": "Instalação de software em máquina",
+          "intencoes": [
+            "solicitacao"
+          ],
+          "problema": "O cliente solicita a instalação de um software (por exemplo, pacote de escritório ou de design) em um equipamento novo ou de outra pessoa.",
+          "palavras_chave": [
+            "instalar",
+            "instalação",
+            "software",
+            "excel",
+            "notebook novo",
+            "licença",
+            "design"
+          ],
+          "solucao_provisoria": "versão online do aplicativo, enquanto a instalação não é feita",
+          "passos": [
+            "Confirmar o nome do software, a versão e quem usará o equipamento.",
+            "Verificar se há licença disponível e se a solicitação foi aprovada pelo gestor.",
+            "Se a licença permitir, indicar a versão online do aplicativo para uso imediato.",
+            "Agendar a instalação definitiva com a equipe de suporte de campo."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 120,
+              "max": 780
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 780,
+              "max": 1440
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 1440,
+              "max": 2880
+            }
+          ]
+        },
+        {
+          "id": "M04-T03",
+          "titulo": "Notebook que não liga",
+          "intencoes": [
+            "falha_sistema"
+          ],
+          "problema": "O notebook do cliente não liga ou desliga sozinho e o trabalho do dia fica comprometido.",
+          "palavras_chave": [
+            "notebook",
+            "não liga",
+            "desliga",
+            "bateria",
+            "tela preta",
+            "computador"
+          ],
+          "solucao_provisoria": "desktop virtual acessado pelo navegador de outro equipamento",
+          "passos": [
+            "Confirmar se o carregador está conectado e se há alguma luz indicadora acesa.",
+            "Orientar o acesso ao desktop virtual pelo navegador de outro equipamento.",
+            "Informar que arquivos salvos na nuvem ficam disponíveis, e os locais só após o reparo.",
+            "Abrir chamado para o suporte de campo, com a possibilidade de equipamento reserva."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 60,
+              "max": 270
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 270,
+              "max": 480
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 480,
+              "max": 960
+            }
+          ]
+        },
+        {
+          "id": "M04-T04",
+          "titulo": "Mouse, teclado ou monitor sem funcionar",
+          "intencoes": [
+            "falha_sistema",
+            "solicitacao"
+          ],
+          "problema": "Um periférico deixa de funcionar e o cliente fica sem condição de operar a estação.",
+          "palavras_chave": [
+            "mouse",
+            "teclado",
+            "monitor",
+            "periférico",
+            "periferico",
+            "tela",
+            "usb"
+          ],
+          "solucao_provisoria": "periférico de reserva retirado na recepção do andar",
+          "passos": [
+            "Confirmar qual periférico falhou e se funciona em outra porta.",
+            "Orientar a retirada do periférico de reserva na recepção do andar.",
+            "Registrar o item defeituoso para troca ou descarte.",
+            "Confirmar com o cliente que a estação voltou a operar."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 15,
+              "max": 70
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 70,
+              "max": 120
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 120,
+              "max": 240
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M05",
+      "titulo": "Orientações de Uso do Portal",
+      "resumo": "Guia para dúvidas frequentes sobre funções do portal do cliente.",
+      "topicos": [
+        {
+          "id": "M05-T01",
+          "titulo": "Exportar relatório mensal em PDF",
+          "intencoes": [
+            "duvida"
+          ],
+          "problema": "O cliente não encontra o botão de exportação do relatório mensal em PDF.",
+          "palavras_chave": [
+            "exportar",
+            "relatório",
+            "relatorio",
+            "pdf",
+            "botão",
+            "sumiu"
+          ],
+          "solucao_provisoria": "opção de impressão do relatório, salvando como PDF",
+          "passos": [
+            "Confirmar em qual tela o cliente está e qual relatório quer exportar.",
+            "Orientar o uso da opção de impressão do navegador e a escolha de salvar como PDF.",
+            "Explicar onde o botão de exportação costuma aparecer, conforme o perfil do usuário.",
+            "Registrar a ocorrência para revisão da interface, se o botão realmente estiver ausente."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 10,
+              "max": 20
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 20,
+              "max": 30
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 30,
+              "max": 60
+            }
+          ]
+        },
+        {
+          "id": "M05-T02",
+          "titulo": "Alterar endereço de cobrança",
+          "intencoes": [
+            "duvida"
+          ],
+          "problema": "O cliente quer alterar o endereço de cobrança e não sabe se é possível fazer isso pelo próprio portal.",
+          "palavras_chave": [
+            "endereço",
+            "cobrança",
+            "alterar",
+            "mudar",
+            "cadastro",
+            "portal"
+          ],
+          "solucao_provisoria": "formulário de atualização cadastral disponível no portal",
+          "passos": [
+            "Informar o caminho: área do cliente, dados cadastrais, endereço de cobrança.",
+            "Explicar que a alteração pode precisar de confirmação pelo responsável financeiro.",
+            "Se a opção não estiver disponível ao perfil do cliente, abrir solicitação de atualização cadastral.",
+            "Confirmar com o cliente se a dúvida foi resolvida."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 10,
+              "max": 35
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 35,
+              "max": 60
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 60,
+              "max": 120
+            }
+          ]
+        },
+        {
+          "id": "M05-T03",
+          "titulo": "Segunda via de fatura ou boleto",
+          "intencoes": [
+            "duvida",
+            "solicitacao"
+          ],
+          "problema": "O cliente precisa da segunda via de uma fatura ou boleto e não a encontra no portal.",
+          "palavras_chave": [
+            "segunda via",
+            "fatura",
+            "boleto",
+            "cobrança",
+            "pagamento",
+            "vencimento"
+          ],
+          "solucao_provisoria": "área de faturas do portal, com a opção de gerar segunda via",
+          "passos": [
+            "Confirmar a competência (mês) da fatura e o CNPJ ou cadastro do cliente.",
+            "Informar o caminho: área do cliente, faturas, gerar segunda via.",
+            "Se a fatura não aparecer, abrir solicitação ao financeiro para emissão manual.",
+            "Orientar a conferir a data de vencimento exibida no documento."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 10,
+              "max": 35
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 35,
+              "max": 60
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 60,
+              "max": 120
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
