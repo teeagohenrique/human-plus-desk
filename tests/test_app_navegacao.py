@@ -80,3 +80,32 @@ def test_app_mantem_etapa_ativa_ao_sair_e_voltar_do_rafael(itens_regras):
         assert at.session_state["estado_chamados"][chamado_id]["camada"] == "decisao"
         assert at.session_state[chave] == "decisao"
         assert at.segmented_control(key=chave).value == "decisao"
+
+
+def test_app_preserva_pagina_e_controles_ao_trocar_idioma(itens_regras):
+    with _app(itens_regras) as (at, _):
+        at.run(timeout=10)
+        assert not at.exception
+
+        at.radio(key="nav_pagina_ui").set_value("rafael").run()
+        at.toggle(key="sim_toggle_ui").set_value(True).run()
+        at.selectbox(key="provider_ui").set_value("gemini").run()
+        at.segmented_control(key="tema_ui").set_value("Claro").run()
+
+        at.button(key="set_lang_en").click().run()
+        assert not at.exception
+        assert at.session_state["lang"] == "EN"
+        assert at.session_state["nav_pagina_ui"] == "rafael"
+        assert at.session_state["provider_ui"] == "gemini"
+        assert at.session_state["tema_ui"] == "Claro"
+        assert at.session_state["sim_toggle_ui"] is True
+        assert I18N["EN"]["title_rafael"] in [titulo.value for titulo in at.title]
+
+        at.button(key="set_lang_pt").click().run()
+        assert not at.exception
+        assert at.session_state["lang"] == "PT"
+        assert at.session_state["nav_pagina_ui"] == "rafael"
+        assert at.session_state["provider_ui"] == "gemini"
+        assert at.session_state["tema_ui"] == "Claro"
+        assert at.session_state["sim_toggle_ui"] is True
+        assert TXT["title_rafael"] in [titulo.value for titulo in at.title]

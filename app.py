@@ -50,6 +50,7 @@ with st.sidebar:
         txt["nav_label"],
         ["marina", "rafael"],
         format_func=lambda k: txt["nav_marina"] if k == "marina" else txt["nav_rafael"],
+        key="nav_pagina_ui",
     )
     st.divider()
     provider = st.selectbox(
@@ -58,6 +59,7 @@ with st.sidebar:
         index=0,
         format_func=lambda k: txt["rules_opt"] if k == "regras" else txt["gemini_opt"],
         help=txt["adapter_help"],
+        key="provider_ui",
     )
     if provider == "gemini":
         st.info(txt["gemini_first_load_warn"])

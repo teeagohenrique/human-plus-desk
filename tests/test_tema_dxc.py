@@ -202,12 +202,9 @@ def test_render_card_cascata_revelacao_progressiva_e_recolhimento():
         {"titulo": "Item 2", "detalhe": "Secundário"},
         {"titulo": "Item 3"},
     ]
-    col1, col2 = _ctx_falso(), _ctx_falso()
-
     with (
         patch.object(tema_dxc.st, "session_state", fake_state),
         patch.object(tema_dxc.st, "container", return_value=_ctx_falso()),
-        patch.object(tema_dxc.st, "columns", return_value=[col1, col2]),
         patch.object(tema_dxc.st, "markdown") as mock_md,
         patch.object(tema_dxc.st, "button") as mock_btn,
     ):

@@ -358,7 +358,7 @@ def tela_rafael(provider: str, escuro: bool, txt: dict) -> None:
 
     col_toggle, col_botao = st.columns([2, 1])
     with col_toggle:
-        usar_sim = st.toggle(txt["sim_toggle"], value=not LOG.exists())
+        usar_sim = st.toggle(txt["sim_toggle"], value=not LOG.exists(), key="sim_toggle_ui")
     with col_botao:
         if usar_sim and st.button(txt["sim_btn"], width="stretch"):
             gerar_simulado(LOG_SIM, fila_base(provider, os.getenv("GEMINI_MODEL", ""), txt=txt))
