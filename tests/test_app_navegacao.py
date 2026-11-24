@@ -155,3 +155,21 @@ def test_app_preserva_resposta_digitada_ao_trocar_idioma(itens_regras):
         assert not at.exception
         assert {chave: at.session_state[chave] for chave in chaves} == antes
         assert TXT["title_marina"] in [titulo.value for titulo in at.title]
+
+
+def test_app_service_console_em_ingles_recebe_identificador_de_provedor(itens_regras):
+    # Regressao do relato: apos trocar para EN, abrir o Service Console nao pode
+    # entregar o rotulo de exibicao (ex.: 'motor de regras (offline)') como provedor.
+    with _app(itens_regras) as (at, _):
+        at.run(timeout=10)
+        at.button(key='set_lang_en').click().run()
+        assert not at.exception
+
+        for pagina in ('rafael', 'marina', 'rafael', 'marina'):
+            at.radio(key='nav_pagina_ui').set_value(pagina).run()
+            assert not at.exception
+            assert at.session_state['nav_pagina_ui'] == pagina
+            assert at.radio(key='nav_pagina_ui').value == pagina
+            assert at.session_state['provider_ui'] in ('regras', 'gemini')
+        assert I18N['EN']['title_marina'] in [titulo.value for titulo in at.title]
+
