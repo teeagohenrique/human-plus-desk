@@ -268,20 +268,24 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
             color: {txt_main} !important;
         }}
         /* Bolinhas de radio harmonizadas nos modos Claro e Escuro */
-        label[data-testid="stRadioOption"]:not([data-selected]) > div > div:first-child,
-        div[role="radiogroup"] label:not([data-selected]) > div:first-child {{
+        label[data-testid="stRadioOption"]:not([data-selected]):not(:has(input:checked)) > div > div:first-child,
+        div[role="radiogroup"] label:not([data-selected]):not(:has(input:checked)) > div:first-child {{
             background-color: {radio_off_bg} !important;
             border: 1.5px solid {radio_off_bd} !important;
         }}
-        label[data-testid="stRadioOption"]:not([data-selected]):hover > div > div:first-child {{
+        label[data-testid="stRadioOption"]:not([data-selected]):not(:has(input:checked)):hover > div > div:first-child {{
             background-color: {hover_pill_bg} !important;
             border-color: {bd_active} !important;
         }}
-        label[data-testid="stRadioOption"][data-selected] > div > div:first-child {{
+        label[data-testid="stRadioOption"][data-selected] > div > div:first-child,
+        label[data-testid="stRadioOption"]:has(input:checked) > div > div:first-child,
+        div[role="radiogroup"] label:has(input:checked) > div:first-child {{
             background-color: #7C3AED !important;
             border: 1.5px solid #7C3AED !important;
         }}
-        label[data-testid="stRadioOption"][data-selected] > div > div:first-child > div {{
+        label[data-testid="stRadioOption"][data-selected] > div > div:first-child > div,
+        label[data-testid="stRadioOption"]:has(input:checked) > div > div:first-child > div,
+        div[role="radiogroup"] label:has(input:checked) > div:first-child > div {{
             background-color: #FFFFFF !important;
         }}
         /* Alinhamento simétrico da fila + micro-feedback (deslocamento + seta) no item ativo */

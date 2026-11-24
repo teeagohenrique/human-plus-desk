@@ -604,3 +604,12 @@ def test_cliente_gemini_indisponivel_continua_registrando_fallback(monkeypatch):
     assert origem == "fallback"
     assert isinstance(triagem, Triagem)
     assert contadores.fallback["cliente_indisponivel"] == 1
+
+
+def test_resolver_provider_aceita_rotulos_de_interface_pt_e_en(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    for rotulo in ("Motor de regras (offline)", "motor de regras (offline)", "Rule engine (offline)"):
+        assert resolver_provider(rotulo) == "regras"
+    monkeypatch.setenv("GEMINI_API_KEY", "chave_teste")
+    assert resolver_provider("Gemini (API)") == "gemini"
+

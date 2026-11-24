@@ -265,12 +265,24 @@ def validar_triagem_trechos(triagem: Triagem, texto_mascarado: str) -> tuple[boo
     return validar_trechos(trechos, texto_mascarado)
 
 
+_APELIDOS_PROVIDER = {
+    "motor de regras (offline)": "regras",
+    "regras (offline)": "regras",
+    "rule engine (offline)": "regras",
+    "rules": "regras",
+    "gemini (api)": "gemini",
+}
+
+
 def resolver_provider(provider: str | None = None) -> str:
     """Resolve o provedor ativo (`regras` por padrão).
 
+    Aceita também os rótulos de exibição da interface (PT/EN) para evitar erro
+    caso o estado de sessão carregue o texto visível em vez do identificador.
     Se `gemini` for pedido sem `GEMINI_API_KEY`, faz fallback silencioso para `regras`.
     """
-    escolhido = (provider or os.getenv("LLM_PROVIDER") or "regras").strip().lower()
+    bruto = (provider or os.getenv("LLM_PROVIDER") or "regras").strip().lower()
+    escolhido = _APELIDOS_PROVIDER.get(bruto, bruto)
     if escolhido not in PROVIDERS:
         raise ValueError(f"Provedor desconhecido: {escolhido!r}. Use um de: {PROVIDERS}")
     if escolhido == "gemini" and not os.getenv("GEMINI_API_KEY"):

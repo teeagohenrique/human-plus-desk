@@ -218,6 +218,7 @@ def _render_finalizados(itens: list, estado_db: dict, txt: dict) -> None:
         ativo = st.session_state.get("chamado_concluido_ativo")
         if ativo not in ids:
             ativo = ids[0]
+            st.session_state["chamado_concluido_ativo"] = ativo
         rotulos = {}
         for cid in ids:
             ref = por_id.get(cid)
@@ -286,9 +287,11 @@ def _render_fila(base: list, visao: str, txt: dict, urgencia_efetiva):
         if not fila:
             st.info(txt["empty_filter"])
             return None
+        ids_fila = [i.id for i in fila]
         ativo = st.session_state.get("chamado_ativo_fila")
-        if ativo not in [i.id for i in fila]:
-            ativo = fila[0].id
+        if ativo not in ids_fila:
+            ativo = ids_fila[0]
+            st.session_state["chamado_ativo_fila"] = ativo
         rotulos = {
             i.id: f"{'→  ' if i.id == ativo else ''}{COR[urgencia_efetiva(i)]} {i.id} · "
                   f"{intencoes.get(i.triagem.intencao, i.triagem.intencao)}"

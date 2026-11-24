@@ -46,6 +46,8 @@ with st.sidebar:
     render_dxc_theme(modo_escuro)
     render_dxc_logo(modo_escuro)
 
+    if st.session_state.get("nav_pagina_ui") not in (None, "marina", "rafael"):
+        st.session_state["nav_pagina_ui"] = "marina"
     pagina = st.radio(
         txt["nav_label"],
         ["marina", "rafael"],
@@ -53,6 +55,9 @@ with st.sidebar:
         key="nav_pagina_ui",
     )
     st.divider()
+    if st.session_state.get("provider_ui") not in (None, "regras", "gemini"):
+        valor_prov = str(st.session_state.get("provider_ui", "")).strip().lower()
+        st.session_state["provider_ui"] = "gemini" if "gemini" in valor_prov else "regras"
     provider = st.selectbox(
         txt["adapter"],
         ["regras", "gemini"],

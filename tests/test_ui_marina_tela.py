@@ -81,3 +81,21 @@ def test_marina_trava_registro_com_placeholder(itens_regras):
         assert not at.exception
         assert at.button(key=f"ok_{chamado_id}").disabled is False
         assert TXT["ready_banner"] in [aviso.value for aviso in at.success]
+
+
+def test_marina_prioridade_critica_seleciona_primeiro_chamado_automaticamente(itens_regras):
+    # Mesmo quando o chamado ativo anterior era de baixa urgencia (fora da lista critica),
+    # abrir Prioridade Critica deve selecionar automaticamente o primeiro chamado critico.
+    id_critico = next(i.id for i in itens_regras if i.triagem.urgencia == "alta")
+    id_baixo = next(i.id for i in itens_regras if i.triagem.urgencia != "alta")
+    with _tela(itens_regras) as at:
+        at.run(timeout=10)
+        at.button(key="btn_kpi_fila").click().run()
+        at.radio(key="chamado_ativo_fila").set_value(id_baixo).run()
+        assert at.session_state["chamado_ativo_fila"] == id_baixo
+
+        at.button(key="btn_kpi_critica").click().run()
+        assert not at.exception
+        assert at.session_state["chamado_ativo_fila"] == id_critico
+        assert at.radio(key="chamado_ativo_fila").value == id_critico
+
