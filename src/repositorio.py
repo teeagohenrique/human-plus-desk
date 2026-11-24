@@ -93,6 +93,44 @@ def init_db(caminho: Path = DB_PATH, concluidos: set[str] | None = None) -> None
         total = conn.execute("SELECT COUNT(*) FROM tickets").fetchone()[0]
         if total == 0:
             _semear(conn, concluidos)
+        if concluidos:
+            _reconciliar_respostas(conn, concluidos)
+
+
+def _reconciliar_respostas(conn: sqlite3.Connection, concluidos: set[str]) -> None:
+    """Preenche resposta_final/resolvido_em ausentes em chamados concluídos a partir do log."""
+    pendentes_texto = conn.execute(
+        "SELECT id, resolvido_por, resolvido_em FROM tickets "
+        "WHERE status = 'concluido' AND (resposta_final IS NULL OR TRIM(resposta_final) = '')"
+    ).fetchall()
+    if not pendentes_texto:
+        return
+
+    log_path = RAIZ / "data" / "painel_log.jsonl"
+    por_id: dict[str, dict] = {}
+    if log_path.exists():
+        for linha in log_path.read_text(encoding="utf-8").splitlines():
+            if not linha.strip():
+                continue
+            reg = json.loads(linha)
+            cid = reg.get("chamado_id")
+            texto = (reg.get("texto_final") or "").strip()
+            if cid in concluidos and texto:
+                por_id[cid] = reg
+
+    for row in pendentes_texto:
+        cid = row["id"]
+        reg = por_id.get(cid)
+        if not reg:
+            continue
+        conn.execute(
+            """UPDATE tickets
+                      SET resposta_final = ?,
+                          resolvido_por = COALESCE(resolvido_por, ?),
+                          resolvido_em = COALESCE(resolvido_em, ?)
+                    WHERE id = ?""",
+            (reg["texto_final"], "Marina", reg.get("quando") or _agora(), cid),
+        )
 
 
 def _semear(conn: sqlite3.Connection, concluidos: set[str]) -> None:
@@ -167,12 +205,17 @@ def registrar_decisao(chamado_id: str, decisao: str, texto_final: str | None,
         if anterior is None:
             raise KeyError(f"chamado não encontrado: {chamado_id}")
         agora = _agora()
+        resposta_gravada = (
+            texto_final
+            if (texto_final is not None and texto_final.strip())
+            else anterior["resposta_final"]
+        )
         conn.execute(
             """UPDATE tickets
                       SET status = 'concluido', resposta_final = ?,
                           resolvido_por = ?, resolvido_em = ?
                     WHERE id = ?""",
-            (texto_final, agente, agora, chamado_id),
+            (resposta_gravada, agente, agora, chamado_id),
         )
         _inserir_evento(conn, chamado_id, "decisao", agente, {
             "decisao": decisao,

@@ -135,3 +135,14 @@ def test_primeira_decisao_registra_ausencia_de_resposta_anterior(db):
     assert det["resolvido_em_anterior"] is None
     assert det["status_anterior"] == "pendente"
     assert det["tem_resposta_anterior"] is False
+
+
+def test_decisao_sem_texto_preserva_resposta_ja_gravada(db):
+    repositorio.registrar_decisao("C06", "editou", "Texto enviado ao cliente.", "Marina", caminho=db)
+    repositorio.reabrir("C06", "Rafael", caminho=db)
+    repositorio.registrar_decisao("C06", "rejeitou", None, "Marina", caminho=db)
+
+    atual = repositorio.estado(caminho=db)["C06"]
+    assert atual["status"] == "concluido"
+    assert atual["resposta_final"] == "Texto enviado ao cliente."
+

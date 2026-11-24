@@ -250,8 +250,9 @@ def _render_finalizados(itens: list, estado_db: dict, txt: dict) -> None:
         with st.container(border=True, key="caixa_resposta"):
             st.markdown(f"**{txt['fin_delivered']}**")
             st.caption(f"{txt['fin_logged']}: **{quando}**")
-            if tk.get("resposta_final"):
-                st.markdown(f'<div class="msg-sent-box">{html.escape(tk["resposta_final"])}</div>', unsafe_allow_html=True)
+            resposta_exibida = tk.get("resposta_final") or d.get("resposta_anterior")
+            if resposta_exibida:
+                st.markdown(f'<div class="msg-sent-box">{html.escape(resposta_exibida)}</div>', unsafe_allow_html=True)
             else:
                 st.info(txt["fin_no_reply"])
 
