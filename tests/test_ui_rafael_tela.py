@@ -66,6 +66,8 @@ def test_rafael_nao_conta_decisao_substituida_por_reabertura_do_banco(eventos_re
     }
     with _tela(eventos_regras, itens_regras, eventos_db=[reabertura]) as at:
         at.run(timeout=10)
+        at.toggle[0].set_value(False)  # modo real: sem depender de data/painel_log.jsonl existir
+        at.run(timeout=10)
 
         assert not at.exception
         assert at.metric[0].value == "1"  # eram 2 decisões; a anterior à reabertura não conta
