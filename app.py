@@ -31,14 +31,21 @@ repositorio.init_db(concluidos=ids_decididos(auditoria.ler(LOG)))
 
 _, coluna_idioma = st.columns([9.4, 1.6])
 with coluna_idioma:
+    # Alternar um slot vazio antes do popover muda seu delta_path no React a cada
+    # clique em PT/EN, desmontando o popover aberto e fechando-o automaticamente.
+    if int(st.session_state.get("_lang_seq", 0)) % 2 == 1:
+        st.empty()
     idioma = render_language_selector()
 txt = I18N[idioma]
 
 with st.sidebar:
+    # Reatribuir as chaves antes dos widgets força o Streamlit a enviar set_value=True
+    # com o raw_value traduzido do idioma atual (evita radio desmarcado e selectbox
+    # preso no texto do idioma anterior ao trocar PT <-> EN).
+    st.session_state["tema_ui"] = "Claro" if st.session_state.get("tema_ui") == "Claro" else "Escuro"
     tema = st.segmented_control(
         txt["appearance"],
         options=["Escuro", "Claro"],
-        default="Escuro",
         format_func=lambda k: txt["dark"] if k == "Escuro" else txt["light"],
         key="tema_ui",
     )
@@ -46,8 +53,8 @@ with st.sidebar:
     render_dxc_theme(modo_escuro)
     render_dxc_logo(modo_escuro)
 
-    if st.session_state.get("nav_pagina_ui") not in (None, "marina", "rafael"):
-        st.session_state["nav_pagina_ui"] = "marina"
+    pagina_atual = st.session_state.get("nav_pagina_ui")
+    st.session_state["nav_pagina_ui"] = pagina_atual if pagina_atual in ("marina", "rafael") else "marina"
     pagina = st.radio(
         txt["nav_label"],
         ["marina", "rafael"],
@@ -55,13 +62,11 @@ with st.sidebar:
         key="nav_pagina_ui",
     )
     st.divider()
-    if st.session_state.get("provider_ui") not in (None, "regras", "gemini"):
-        valor_prov = str(st.session_state.get("provider_ui", "")).strip().lower()
-        st.session_state["provider_ui"] = "gemini" if "gemini" in valor_prov else "regras"
+    valor_prov = str(st.session_state.get("provider_ui", "regras")).strip().lower()
+    st.session_state["provider_ui"] = "gemini" if "gemini" in valor_prov else "regras"
     provider = st.selectbox(
         txt["adapter"],
         ["regras", "gemini"],
-        index=0,
         format_func=lambda k: txt["rules_opt"] if k == "regras" else txt["gemini_opt"],
         help=txt["adapter_help"],
         key="provider_ui",

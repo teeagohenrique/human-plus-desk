@@ -173,3 +173,31 @@ def test_app_service_console_em_ingles_recebe_identificador_de_provedor(itens_re
             assert at.session_state['provider_ui'] in ('regras', 'gemini')
         assert I18N['EN']['title_marina'] in [titulo.value for titulo in at.title]
 
+
+def test_app_envia_set_value_nos_radios_e_alterna_seq_do_popover_ao_trocar_idioma(itens_regras):
+    with _app(itens_regras) as (at, _):
+        at.run(timeout=10)
+        assert at.session_state.get("_lang_seq", 0) == 0
+        assert at.radio(key="nav_pagina_ui").proto.set_value is True
+        assert at.radio(key="nav_pagina_ui").proto.raw_value == I18N["PT"]["nav_marina"]
+
+        at.button(key="set_lang_en").click().run()
+        assert at.session_state["_lang_seq"] == 1
+        assert at.radio(key="nav_pagina_ui").proto.set_value is True
+        assert at.radio(key="nav_pagina_ui").proto.raw_value == I18N["EN"]["nav_marina"]
+        assert at.selectbox(key="provider_ui").proto.set_value is True
+        assert at.selectbox(key="provider_ui").proto.raw_value == I18N["EN"]["rules_opt"]
+
+        at.button(key="set_lang_pt").click().run()
+        assert at.session_state["_lang_seq"] == 2
+        assert at.radio(key="nav_pagina_ui").proto.set_value is True
+        assert at.radio(key="nav_pagina_ui").proto.raw_value == I18N["PT"]["nav_marina"]
+        assert at.selectbox(key="provider_ui").proto.set_value is True
+        assert at.selectbox(key="provider_ui").proto.raw_value == I18N["PT"]["rules_opt"]
+
+        at.button(key="btn_kpi_critica").click().run()
+        rf = at.radio(key="chamado_ativo_fila").proto
+        assert rf.set_value is True
+        assert rf.raw_value in list(rf.options)
+
+

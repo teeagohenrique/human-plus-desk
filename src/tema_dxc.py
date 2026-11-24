@@ -594,8 +594,9 @@ def render_dxc_logo(dark_mode: bool = False) -> None:
 
 
 def _definir_idioma(novo: str) -> None:
-    """Atualiza o idioma antes do rerun para desmontar e fechar o popover anterior."""
+    """Atualiza o idioma e gira `_lang_seq` para fechar o popover no rerun."""
     st.session_state["lang"] = novo
+    st.session_state["_lang_seq"] = int(st.session_state.get("_lang_seq", 0)) + 1
 
 
 def render_language_selector() -> str:
@@ -613,6 +614,7 @@ def render_language_selector() -> str:
         ):
             st.session_state["lang"] = "PT"
             if idioma_antes != "PT":
+                st.session_state["_lang_seq"] = int(st.session_state.get("_lang_seq", 0)) + 1
                 st.rerun()
         if st.button(
             "English (EN)",
@@ -623,6 +625,7 @@ def render_language_selector() -> str:
         ):
             st.session_state["lang"] = "EN"
             if idioma_antes != "EN":
+                st.session_state["_lang_seq"] = int(st.session_state.get("_lang_seq", 0)) + 1
                 st.rerun()
     return st.session_state["lang"]
 
