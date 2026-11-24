@@ -5,10 +5,10 @@ Assistente de service desk em Python que ajuda a analista a priorizar chamados e
 
 ## Em poucas linhas
 
-- **Governança antes de IA:** CPF, CNPJ, e-mail, telefone e nomes próprios são mascarados antes de qualquer agente ver o texto ou de haver envio externo (`src/mascara.py`).
+- **Governança antes de IA:** CPF, CNPJ, e-mail, telefone e nomes próprios são mascarados antes de qualquer agente ver o texto ou de haver envio externo — padrões fixos, heurística de prefixos e NER local com Presidio + spaCy PT (`src/mascara.py`, `src/ner_local.py`).
 - **Humano no controle:** urgência sem pré-seleção, `[colchetes]` obrigatórios no rascunho e decisão 100% humana na tela (`src/ui_marina.py`, `app.py`).
 - **Resiliência observável:** regras offline e Gemini atrás da mesma interface, fallback silencioso e origem da resposta mostrada por chamado (`src/llm.py`, `app.py`).
-- **Engenharia verificada:** 199 testes, incluindo `AppTest` para a navegação e para as telas Marina/Rafael (`tests/`), `ruff` e `compileall` limpos, CI verde em 14 execuções consecutivas (GitHub Actions, 2026-11-23).
+- **Engenharia verificada:** 211 testes coletados no HEAD `7142d0e` (`pytest --collect-only -q`), incluindo `AppTest` para a navegação e para as telas Marina/Rafael (`tests/`), `ruff` e `compileall` limpos. CI configurado para `ruff` + `compileall` + `pytest` em cada push/PR (GitHub Actions).
 
 ## O problema
 A analista abre dezenas de chamados sem saber qual é mais urgente e escreve respostas sob pressão, com risco de prometer prazos que não pode cumprir.
@@ -16,7 +16,7 @@ A analista abre dezenas de chamados sem saber qual é mais urgente e escreve res
 ## Fluxo v2 (humano no controle)
 **Máscara (LGPD) → Agente 1: Triagem → Agente 2: Percepção → Agente 3: Redator (OARS + Guardrail) → Painel da Analista → Auditoria → Calibração**
 
-- **Máscara (LGPD):** CPF, CNPJ, e-mail, telefone e nomes próprios (por heurística) são trocados por `[CPF]`, `[NOME]` etc. antes de qualquer agente ver o texto (`src/mascara.py`).
+- **Máscara (LGPD):** CPF, CNPJ, e-mail, telefone e nomes próprios são trocados por `[CPF]`, `[NOME]` etc. antes de qualquer agente ver o texto. São três camadas offline: padrões com formato fixo, heurística de prefixos e NER local (Presidio + spaCy em português, `src/ner_local.py`). Se o modelo falhar, a heurística anterior continua valendo (`src/mascara.py`).
 - **Agente 1 — Triagem (`src/triagem.py`):** intenção e urgência com **trecho literal** (*"sem trecho, sem campo"*).
 - **Agente 2 — Percepção (`src/percepcao.py`):** até 3 palpites em forma de hipótese (*necessidade não dita*, *padrão entre chamados*, *risco de recorrência*) + 5 leituras possíveis e campo livre.
 - **Agente 3 — Redator (`src/redator.py`):** rascunho em linguagem **OARS** conectado à Percepção (reage à leitura escolhida e aos palpites), deixando prazos e soluções provisórias em `[colchetes]` para a analista preencher.
@@ -52,7 +52,7 @@ Para usar o Gemini, preencha `GEMINI_API_KEY` e `GEMINI_MODEL` no `.env` da raiz
 - `validar_trechos` é comum aos dois adaptadores: exige trecho literal exato contra o texto **mascarado**, com capitalização preservada e fronteira de palavra (`cai` não casa com `caiu`).
 - Espaçamento de 4,6 s entre chamadas e backoff limitado: 3 tentativas para 429 (respeitando `retryDelay`) e 5 para 503 (10/20/40/60 s).
 - Contador de origem da triagem: `gemini`, `regras` e `fallback` (Gemini pedido, mas respondido pelas regras). O `--avaliar` imprime `Origem: ...` e `Fallbacks: ...` e devolve ambos os dicionários (`origem` e `fallback_motivos`) no resultado. `zerar_contadores()` limpa os dois antes de cada medição. "Gemini pedido sem chave" continua contando como `regras`, não como fallback.
-- A máscara cobre também nomes próprios por heurística (`src/mascara.py`), antes de qualquer envio externo.
+- A máscara cobre nomes próprios por heurística de prefixos e por NER local (`src/mascara.py`, `src/ner_local.py`), antes de qualquer envio externo. O modelo PT é instalado com `python -m spacy download pt_core_news_sm` (não está no PyPI).
 
 ## Benchmark no conjunto independente (36 chamados)
 `data/chamados_validacao_independente.json` foi escrito com formulações naturais, sem ajustar regras nem prompt em cima dele. V01–V16 foram preservados da amostra original; V17–V36 foram acrescentados. Ambos os provedores rodaram no **mesmo arquivo**.
@@ -66,7 +66,7 @@ Para usar o Gemini, preencha `GEMINI_API_KEY` e `GEMINI_MODEL` no `.env` da raiz
 
 `[Fonte: saída de --provider gemini: "Origem: gemini=28 | regras=0 | fallback=8" e "Arquivo: chamados_validacao_independente.json | Provider: gemini | Intenção: 26/36 (72%) | Urgência: 29/36 (81%)", 23 de novembro de 2026]`
 
-Dos 36 chamados, 28 foram respondidos pelo Gemini e 8 caíram em fallback por regras. A urgência se manteve em 29/36. A medição anterior, feita antes do contador e antes do endurecimento de `validar_trechos` com fronteira de palavra (`src/llm.py:122-129`), registrou 31/36 (86%) em intenção e 29/36 (81%) em urgência. A queda de 86% para 72% em intenção coincide com esse endurecimento e com a entrada do fallback por exceção de API. Essa medição antiga **não separava os motivos**. `src/llm.py` agora registra cada fallback por causa (erro de API por status, trecho inválido, schema inválido, guardrail, marcadores faltantes, SDK ou cliente indisponíveis) e o `--avaliar` imprime a linha `Fallbacks: ...`. A nova medição com a instrumentação ligada está registrada abaixo e não reproduziu os 8 fallbacks; classificar retroativamente aqueles casos não é possível com os dados disponíveis.
+Dos 36 chamados, 28 foram respondidos pelo Gemini e 8 caíram em fallback por regras. A urgência se manteve em 29/36. A medição anterior, feita antes do contador e antes do endurecimento de `validar_trechos` com fronteira de palavra (`src/llm.py :: validar_trechos`), registrou 31/36 (86%) em intenção e 29/36 (81%) em urgência. A queda de 86% para 72% em intenção coincide com esse endurecimento e com a entrada do fallback por exceção de API. Essa medição antiga **não separava os motivos**. `src/llm.py` agora registra cada fallback por causa (erro de API por status, trecho inválido, schema inválido, guardrail, marcadores faltantes, SDK ou cliente indisponíveis) e o `--avaliar` imprime a linha `Fallbacks: ...`. A nova medição com a instrumentação ligada está registrada abaixo e não reproduziu os 8 fallbacks; classificar retroativamente aqueles casos não é possível com os dados disponíveis.
 
 **Nova medição (instrumentação de motivos ligada, 23 de novembro de 2026):**
 
@@ -104,8 +104,8 @@ Histórico: na amostra de 16 chamados, Regras 3/16 (19%) e 10/16 (62%) contra Ge
 - A identidade visual DXC (paleta roxo/magenta/laranja, Space Grotesk, logotipo Human [+] Desk), o seletor de idioma e o alternador Claro/Escuro ficam em `src/tema_dxc.py`. Os textos PT/EN vivem em `src/textos.py` — 176 chaves de topo, 9 blocos aninhados e 203 entradas-folha por idioma — e são reexportados por `src/tema_dxc.py`.
 - `app.py` importa `I18N`, `render_dxc_theme`, `render_dxc_logo` e `render_language_selector` de `src/tema_dxc.py`; não mantém cópia local de CSS, SVG ou traduções. `get_text` fica disponível no módulo para rótulos pontuais sem duplicar o dicionário.
 - O seletor PT/EN fica no topo da área principal; o tema Claro/Escuro fica na barra lateral (`tema_ui`). As chaves de widgets usadas pela agent API (`urg_ui_C15`, callbacks e filtros) não mudaram.
-- O módulo de tema não lê segredos: a configuração continua restrita a `GEMINI_API_KEY` e `GEMINI_MODEL` em `.env` (`src/config.py`). Use `.env.example` como referência; valores iguais a `sua_chave_aqui` são ignorados (`src/config.py:9,22`).
-- `tests/test_tema_dxc.py` cobre a paridade recursiva das 176 chaves (incluindo os 9 blocos aninhados), o fallback de tradução, o CSS dos dois modos, o SVG e a troca de idioma. Suíte total: **199 testes**.
+- O módulo de tema não lê segredos: a configuração continua restrita a `GEMINI_API_KEY` e `GEMINI_MODEL` em `.env` (`src/config.py`). Use `.env.example` como referência; valores iguais a `sua_chave_aqui` são ignorados (`src/config.py :: carregar_env`).
+- `tests/test_tema_dxc.py` cobre a paridade recursiva das 176 chaves (incluindo os 9 blocos aninhados), o fallback de tradução, o CSS dos dois modos, o SVG e a troca de idioma. Suíte total: **211 testes coletados** (`pytest --collect-only -q`, HEAD `7142d0e`).
 
 ## Próximos passos
 1. Manter os 8 fallbacks da medição anterior como histórico sem causa atribuída: a nova medição instrumentada registrou `Fallbacks: nenhum` e não os reproduziu, então não há base para atribuir a queda anterior a 429/503 ou à validação de trechos.
