@@ -134,6 +134,51 @@ def linha_acervo(topico_id: str | None, palavras: list[str] | None, txt: dict) -
     return " | ".join(partes)
 
 
+def topico_do_item(item) -> tuple[acervo.Topico | None, list[str]]:
+    """Tópico do acervo e palavras-chave associadas ao chamado, se houver."""
+    for p in getattr(item, "palpites", ()) or ():
+        tid = getattr(p, "acervo_topico_id", None)
+        if tid:
+            topico = acervo.obter_topico(tid)
+            if topico is not None:
+                return topico, list(getattr(p, "acervo_palavras", ()) or ())
+    achado = acervo.buscar(item.texto_mascarado, item.triagem.intencao)
+    if achado is not None:
+        return achado.topico, achado.palavras
+    return None, []
+
+
+_NOMES_CADASTRO_SIMULADO = {
+    "C01": "Carlos",
+    "C02": "Ana Souza",
+    "C03": "Roberto Almeida",
+    "C04": "Fernanda Lima",
+    "C05": "Lucas Mendes",
+    "C06": "Marcos Vieira",
+    "C07": "Júlia",
+    "C08": "Eduardo Santos",
+    "C09": "Patrícia Gomes",
+    "C10": "Helena Ribeiro",
+    "C11": "Ricardo Oliveira",
+    "C12": "Bruno Carvalho",
+    "C13": "Paula",
+    "C14": "Camila Rocha",
+    "C15": "Gustavo Martins",
+    "C16": "Daniela Costa",
+}
+
+
+def resolver_arroba_rafael(chamado_id: str, texto: str | None) -> str:
+    """Substitui o `@` pelo nome do cliente/paciente exclusivamente na visão do Rafael.
+
+    A Marina só vê `@` (inclusive em Finalizados); o Rafael vê o nome resolvido.
+    """
+    if not texto:
+        return ""
+    nome = _NOMES_CADASTRO_SIMULADO.get(chamado_id, f"Cliente {chamado_id}")
+    return re.sub(r"(?<!\w)@(?!\w)", nome, texto)
+
+
 def traduzir_hipotese_salva(texto: str, n_evidencias: int, txt: dict) -> str:
     """Traduz hipóteses salvas em registros de supervisão pela estrutura PT."""
     hips = txt.get("hipoteses", {})

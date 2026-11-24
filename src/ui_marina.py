@@ -13,7 +13,7 @@ import os
 
 import streamlit as st
 
-from src import auditoria, repositorio
+from src import acervo, auditoria, repositorio
 from src.calibracao import carregar_config
 from src.painel import (
     classificar_resposta,
@@ -23,7 +23,7 @@ from src.painel import (
     registrar_decisao,
 )
 from src.percepcao import trechos_da_leitura
-from src.redator import _PLACEHOLDER
+from src.redator import _PLACEHOLDER, formatar_sugestao_acervo, pendencias_abertas
 from src.tema_dxc import render_card_cascata
 from src.ui_comum import (
     CONFIG,
@@ -33,6 +33,7 @@ from src.ui_comum import (
     formatar_data_hora,
     linha_acervo,
     nome_sinal,
+    topico_do_item,
     traduzir_hipotese_salva,
     traduzir_leitura,
     traduzir_palpite,
@@ -49,7 +50,53 @@ def _ir_para_etapa(item_id: str, destino: str) -> None:
     if item_id in estados:
         estados[item_id]["viu_chamado"] = True
         estados[item_id]["camada"] = destino
+        estados[item_id]["aba_acervo_aberta"] = False
     st.session_state[f"camada_{item_id}"] = destino
+
+
+def _ao_trocar_camada(item_id: str) -> None:
+    estados = st.session_state.setdefault("estado_chamados", {})
+    if item_id in estados:
+        estados[item_id]["aba_acervo_aberta"] = False
+
+
+def _aplicar_acervo_na_sugestao(item, estado: dict, topico: acervo.Topico) -> str:
+    """Injeta a solução provisória do acervo na sugestão OARS do chamado."""
+    texto_estruturado = formatar_sugestao_acervo(item.triagem, topico.solucao_provisoria)
+    estado["acervo_topico_id"] = topico.id
+    estado["sugestao_acervo"] = texto_estruturado
+    leitura_reg, _ = _leitura_para_registro(estado)
+    for sufixo in {leitura_reg or "base", "base"}:
+        st.session_state[f"sug_ui_{item.id}_{sufixo}"] = texto_estruturado
+    return texto_estruturado
+
+
+def _abrir_acervo(item, origem: str) -> None:
+    """Abre a aba do Acervo a partir da Análise Contextual ou do Registro e atualiza a sugestão OARS."""
+    estado = _estado_item(item)
+    topico, _ = topico_do_item(item)
+    estado["viu_chamado"] = True
+    estado["camada_origem_acervo"] = origem
+    estado["aba_acervo_aberta"] = True
+    if topico is not None:
+        _aplicar_acervo_na_sugestao(item, estado, topico)
+
+
+def _voltar_do_acervo(item_id: str) -> None:
+    estados = st.session_state.setdefault("estado_chamados", {})
+    if item_id in estados:
+        origem = estados[item_id].get("camada_origem_acervo") or "chamado"
+        estados[item_id]["aba_acervo_aberta"] = False
+        estados[item_id]["camada"] = origem
+        st.session_state[f"camada_{item_id}"] = origem
+
+
+def _ir_para_resposta_do_acervo(item) -> None:
+    estado = _estado_item(item)
+    topico, _ = topico_do_item(item)
+    if topico is not None:
+        _aplicar_acervo_na_sugestao(item, estado, topico)
+    _ir_para_etapa(item.id, "resposta")
 
 
 def _registrar_urgencia_ui(item_id: str, agente: str) -> None:
@@ -65,11 +112,21 @@ def _selecionar_indicador(visao: str, quantidade: int) -> None:
     st.session_state["visao_marina"] = None if st.session_state.get("visao_marina") == visao else visao
 
 
-def _usar_sugestao(chave_sugestao: str, chave_resposta: str) -> None:
-    """Leva a sugestão para a resposta ao cliente sem apagar o que já foi escrito."""
+def _usar_sugestao(chave_sugestao: str, chave_resposta: str, item_id: str | None = None) -> None:
+    """Leva a sugestão para a resposta ao cliente e sinaliza o botão como ativo."""
     sugestao = st.session_state.get(chave_sugestao, "")
     atual = st.session_state.get(chave_resposta, "")
-    st.session_state[chave_resposta] = f"{atual.rstrip()}\n\n{sugestao}".strip() if atual.strip() else sugestao
+    estados = st.session_state.setdefault("estado_chamados", {})
+    if item_id and item_id in estados:
+        estados[item_id]["usou_sugestao"] = True
+        if estados[item_id].get("acervo_topico_id"):
+            st.session_state[chave_resposta] = sugestao
+            estados[item_id]["resposta"] = sugestao
+            return
+    novo = f"{atual.rstrip()}\n\n{sugestao}".strip() if atual.strip() else sugestao
+    st.session_state[chave_resposta] = novo
+    if item_id and item_id in estados:
+        estados[item_id]["resposta"] = novo
 
 
 def _estado_item(item) -> dict:
@@ -83,6 +140,12 @@ def _estado_item(item) -> dict:
             "leitura_livre": "",
             "urgencia": None,
             "resposta": "",
+            "aba_acervo_aberta": False,
+            "camada_origem_acervo": "chamado",
+            "acervo_topico_id": None,
+            "sugestao_acervo": None,
+            "usou_sugestao": False,
+            "cenario_tempo_idx": 0,
         }
         st.session_state.setdefault(f"camada_{item.id}", "chamado")
     return estados[item.id]
@@ -349,10 +412,94 @@ def _etapa_analise(item, txt: dict) -> None:
             chave_unica=f"analise_{item.id}",
             vazio=txt["no_guesses"],
         )
+        topico_ac, _ = topico_do_item(item)
+        if topico_ac is not None:
+            st.button(
+                txt["acervo_open_btn"].format(titulo=topico_ac.titulo),
+                key=f"abrir_acervo_1_{item.id}",
+                width="stretch",
+                on_click=_abrir_acervo,
+                args=(item, "chamado"),
+            )
 
     with st.container(key="cta_step_1"):
         st.button(txt["go_2"], type="primary", width="stretch", key=f"go2_{item.id}",
                   on_click=_ir_para_etapa, args=(item.id, "decisao"))
+
+
+def _etapa_acervo(item, estado: dict, txt: dict) -> None:
+    """Aba do Acervo: material descritivo, simulador de tempo, voltar e ir para resposta."""
+    topico, palavras = topico_do_item(item)
+    if topico is None:
+        st.button(txt["acervo_back_btn"], key=f"voltar_acervo_{item.id}",
+                  on_click=_voltar_do_acervo, args=(item.id,))
+        return
+
+    with st.container(border=True):
+        st.markdown(f'<span class="hpd-eyebrow">{txt["acervo_tab_title"]}</span>', unsafe_allow_html=True)
+        st.markdown(f"#### `{topico.id}` · {topico.titulo}")
+        st.caption(f"**{txt['acervo_material_lbl']}:** {topico.material_id} — {topico.material_titulo}")
+        if palavras:
+            st.caption(f"**{txt['acervo_words'].capitalize()}:** {', '.join(palavras)}")
+        st.markdown(f"**{txt['acervo_problem_lbl']}**\n\n{topico.problema}")
+        st.info(f"**{txt['acervo_workaround_lbl']}:** `[{topico.solucao_provisoria}]`")
+        st.markdown(f"**{txt['acervo_steps_lbl']}**")
+        for indice, passo in enumerate(topico.passos, start=1):
+            st.markdown(f"{indice}. {passo}")
+
+    with st.container(border=True):
+        st.markdown(f"**{txt['acervo_sim_title']}**")
+        linhas_tempo = [
+            {
+                txt["acervo_sim_scenario"]: f.cenario,
+                txt["acervo_sim_range"]: f"{f.min}–{f.max} min",
+            }
+            for f in topico.tabela_tempo
+        ]
+        st.table(linhas_tempo)
+
+        opcoes_idx = list(range(len(topico.tabela_tempo)))
+        idx_padrao = estado.get("cenario_tempo_idx", 0)
+        if idx_padrao not in opcoes_idx:
+            idx_padrao = 0
+        escolhido_idx = st.pills(
+            txt["acervo_sim_choose"],
+            options=opcoes_idx,
+            default=idx_padrao,
+            format_func=lambda idx: f"{topico.tabela_tempo[idx].cenario} ({topico.tabela_tempo[idx].min}–{topico.tabela_tempo[idx].max} min)",
+            key=f"sim_cenario_{item.id}",
+        )
+        if escolhido_idx is None:
+            escolhido_idx = 0
+        estado["cenario_tempo_idx"] = escolhido_idx
+        est = acervo.estimar(topico, escolhido_idx)
+        lang = txt.get("lang_code", "PT")
+        de_str = formatar_data_hora(est.previsto_de.isoformat(), lang=lang)
+        ate_str = formatar_data_hora(est.previsto_ate.isoformat(), lang=lang)
+        st.success(
+            txt["acervo_sim_result"].format(
+                de=de_str, ate=ate_str, min=est.minutos_min, max=est.minutos_max,
+            )
+        )
+
+    col_voltar, col_aplicar = st.columns(2, gap="medium")
+    with col_voltar:
+        st.button(
+            txt["acervo_back_btn"],
+            key=f"voltar_acervo_{item.id}",
+            width="stretch",
+            on_click=_voltar_do_acervo,
+            args=(item.id,),
+        )
+    with col_aplicar, st.container(key="cta_step_3_acervo"):
+        st.button(
+            txt["acervo_apply_btn"],
+            type="primary",
+            key=f"ir_resp_acervo_{item.id}",
+            width="stretch",
+            on_click=_ir_para_resposta_do_acervo,
+            args=(item,),
+        )
 
 
 def _etapa_decisao(item, estado: dict, txt: dict, agente: str) -> None:
@@ -407,21 +554,36 @@ def _etapa_resposta(item, estado: dict, txt: dict, agente: str, provider: str) -
     rascunho, origem = rascunho_adaptado(
         item, leitura_registro, provider, os.getenv("GEMINI_MODEL", ""), st.session_state["cache_rascunhos"],
     )
+    texto_sugestao_ia = estado.get("sugestao_acervo") or rascunho.texto
     chave_sugestao = f"sug_ui_{item.id}_{leitura_registro or 'base'}"
     chave_resposta = f"resp_ui_{item.id}"
     # Valores iniciais definidos antes de criar os campos (sem `value=`, para a
     # sugestão poder ser copiada por callback sem conflito de estado).
-    st.session_state.setdefault(chave_sugestao, rascunho.texto)
+    st.session_state.setdefault(chave_sugestao, texto_sugestao_ia)
     st.session_state.setdefault(chave_resposta, estado["resposta"])
 
     col_sugestao, col_supervisao = st.columns(2, gap="medium")
     with col_sugestao, st.container(border=True):
         st.markdown(f"**{txt['box_suggestion']}**")
         st.caption(f"{txt['box_suggestion_hint']} · {txt['origens'].get(origem, origem)}")
+        if estado.get("acervo_topico_id"):
+            st.caption(txt["acervo_applied_badge"])
         st.text_area(txt["box_suggestion"], key=chave_sugestao, height=230, label_visibility="collapsed")
-        st.button(txt["btn_use_suggestion"], key=f"usar_{item.id}", width="stretch",
-                  on_click=_usar_sugestao, args=(chave_sugestao, chave_resposta))
-    pacote = detalhes_supervisao(item, leitura_registro, leitura_livre, estado["urgencia"], rascunho.texto, origem)
+        rotulo_usar = (
+            f"✓ {txt['btn_use_suggestion']}"
+            if estado.get("usou_sugestao")
+            else txt["btn_use_suggestion"]
+        )
+        chave_cnt_usar = f"btn_usar_ativo_{item.id}" if estado.get("usou_sugestao") else f"btn_usar_padrao_{item.id}"
+        with st.container(key=chave_cnt_usar):
+            st.button(
+                rotulo_usar,
+                key=f"usar_{item.id}",
+                width="stretch",
+                on_click=_usar_sugestao,
+                args=(chave_sugestao, chave_resposta, item.id),
+            )
+    pacote = detalhes_supervisao(item, leitura_registro, leitura_livre, estado["urgencia"], texto_sugestao_ia, origem)
     with col_supervisao:
         _render_supervisao(
             txt,
@@ -429,6 +591,15 @@ def _etapa_resposta(item, estado: dict, txt: dict, agente: str, provider: str) -
             chave_unica=f"sup_resp_{item.id}",
             subtitulo=txt["box_supervision_hint"],
         )
+        topico_ac, _ = topico_do_item(item)
+        if topico_ac is not None:
+            st.button(
+                txt["acervo_open_btn"].format(titulo=topico_ac.titulo),
+                key=f"abrir_acervo_3_{item.id}",
+                width="stretch",
+                on_click=_abrir_acervo,
+                args=(item, "resposta"),
+            )
 
     with st.container(border=True, key="caixa_resposta"):
         st.markdown(f"**{txt['box_reply']}**")
@@ -439,7 +610,7 @@ def _etapa_resposta(item, estado: dict, txt: dict, agente: str, provider: str) -
         )
         estado["resposta"] = resposta
 
-        marcadores = _PLACEHOLDER.findall(resposta)
+        marcadores = pendencias_abertas(resposta)
         corpo = _PLACEHOLDER.sub("", resposta).strip()
         faltas = []
         if estado["urgencia"] is None:
@@ -454,7 +625,7 @@ def _etapa_resposta(item, estado: dict, txt: dict, agente: str, provider: str) -
             st.success(txt["ready_banner"])
 
         if st.button(txt["btn_register"], type="primary", width="stretch", key=f"ok_{item.id}", disabled=bool(faltas)):
-            decisao = classificar_resposta(rascunho.texto, resposta)
+            decisao = classificar_resposta(texto_sugestao_ia, resposta)
             registrar_decisao(
                 LOG, item, decisao, resposta, leitura_registro, leitura_livre, estado["urgencia"], False,
                 origem_triagem=item.origem_triagem, origem_rascunho=origem,
@@ -504,7 +675,7 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina") -> None:
     # Valores dos campos já atualizados nesta execução (os campos só existem na etapa ativa).
     urgencia = st.session_state.get(f"urg_ui_{item.id}", estado["urgencia"])
     resposta = st.session_state.get(f"resp_ui_{item.id}", estado["resposta"])
-    pronta = urgencia is not None and bool(_PLACEHOLDER.sub("", resposta or "").strip()) and not _PLACEHOLDER.search(resposta or "")
+    pronta = urgencia is not None and bool(_PLACEHOLDER.sub("", resposta or "").strip()) and not pendencias_abertas(resposta or "")
     alerta = any(p.sugere_subir_urgencia for p in item.palpites)
 
     etapas = {
@@ -543,11 +714,14 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina") -> None:
         escolhida = st.segmented_control(
             txt["steps_label"], options=list(etapas), format_func=lambda k: f"{etapas[k][1]} {etapas[k][0]}",
             label_visibility="collapsed", key=f"camada_{item.id}",
+            on_change=_ao_trocar_camada, args=(item.id,),
         )
         if escolhida is not None:
             estado["camada"] = escolhida
 
-        if estado["camada"] == "chamado":
+        if estado.get("aba_acervo_aberta"):
+            _etapa_acervo(item, estado, txt)
+        elif estado["camada"] == "chamado":
             _etapa_analise(item, txt)
         elif estado["camada"] == "decisao":
             estado["viu_chamado"] = True

@@ -155,7 +155,8 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         div[data-testid="stButtonGroup"] button[aria-pressed="true"],
         div[data-testid="stButtonGroup"] button[data-testid*="Active"],
         button[kind="segmented_controlActive"],
-        button[kind="pillsActive"] {{
+        button[kind="pillsActive"],
+        div[class*="st-key-btn_usar_ativo"] button {{
             background-color: {bg_active} !important;
             color: {fg_active} !important;
             border: 2px solid {bd_active} !important;
@@ -167,7 +168,8 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
         div[data-testid="stButtonGroup"] button[aria-pressed="true"] *,
         div[data-testid="stButtonGroup"] button[data-testid*="Active"] *,
         button[kind="segmented_controlActive"] *,
-        button[kind="pillsActive"] * {{
+        button[kind="pillsActive"] *,
+        div[class*="st-key-btn_usar_ativo"] button * {{
             color: {fg_active} !important;
             font-weight: 600 !important;
         }}

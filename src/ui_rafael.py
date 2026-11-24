@@ -3,6 +3,7 @@
 Somente leitura sobre as decisões da analista; as únicas ações são aprovar a
 redução de interpretações (calibração) e reabrir um chamado, ambas registradas.
 """
+import html
 import os
 from datetime import date
 
@@ -32,6 +33,7 @@ from src.ui_comum import (
     estilizar_grafico,
     fila_base,
     formatar_data_hora,
+    resolver_arroba_rafael,
     traduzir_leitura,
 )
 
@@ -315,6 +317,10 @@ def _expander_auditoria(txt: dict) -> None:
                 for cid, tk in finalizados.items()
             }
             alvo = st.selectbox(txt["db_reopen_select"], list(rotulos), format_func=rotulos.get, key="db_reopen_alvo")
+            texto_rafael = resolver_arroba_rafael(alvo, finalizados[alvo].get("resposta_final"))
+            if texto_rafael:
+                st.caption(f"**{txt['rafael_msg_title']}**")
+                st.markdown(f'<div class="msg-sent-box">{html.escape(texto_rafael)}</div>', unsafe_allow_html=True)
             if st.button(txt["db_reopen_btn"], key="db_reopen_confirmar"):
                 repositorio.reabrir(alvo, "Rafael")
                 st.toast(txt["db_reopen_done"])

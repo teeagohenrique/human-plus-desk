@@ -99,3 +99,54 @@ def test_marina_prioridade_critica_seleciona_primeiro_chamado_automaticamente(it
         assert at.session_state["chamado_ativo_fila"] == id_critico
         assert at.radio(key="chamado_ativo_fila").value == id_critico
 
+
+def test_marina_fluxo_acervo_substitui_solucao_sinaliza_botao_usar_e_libera_ao_preencher_prazo(itens_regras):
+    from src.redator import PEND_PRAZO, PEND_PROVISORIA
+
+    chamado_id = itens_regras[0].id
+    with _tela(itens_regras) as at:
+        at.run(timeout=10)
+        at.button(key="btn_kpi_fila").click().run()
+
+        # 1) Clica no botão da Análise Contextual para consultar o Acervo
+        at.button(key=f"abrir_acervo_1_{chamado_id}").click().run()
+        assert not at.exception
+        assert at.session_state["estado_chamados"][chamado_id]["aba_acervo_aberta"] is True
+        assert len(at.table) == 1
+
+        # 2) Volta para a página onde estava (Análise)
+        at.button(key=f"voltar_acervo_{chamado_id}").click().run()
+        assert not at.exception
+        assert at.session_state["estado_chamados"][chamado_id]["aba_acervo_aberta"] is False
+        assert at.session_state["estado_chamados"][chamado_id]["camada"] == "chamado"
+
+        # 3) Define urgência na Etapa 2, consulta o Acervo e avança para Resposta
+        at.button(key=f"go2_{chamado_id}").click().run()
+        at.pills(key=f"urg_ui_{chamado_id}").set_value("alta").run()
+        at.button(key=f"go3_{chamado_id}").click().run()
+        at.button(key=f"abrir_acervo_3_{chamado_id}").click().run()
+        at.button(key=f"ir_resp_acervo_{chamado_id}").click().run()
+        assert not at.exception
+
+        # 4) Sugestão OARS já traz o texto estruturado com [@] e a solução do acervo, sem PEND_PROVISORIA
+        leitura_reg = at.session_state["estado_chamados"][chamado_id]["leitura"] or "base"
+        chave_sug = f"sug_ui_{chamado_id}_{leitura_reg}"
+        sugestao_oars = at.text_area(key=chave_sug).value
+        assert "Olá, Sr. @ !" in sugestao_oars
+        assert PEND_PROVISORIA not in sugestao_oars
+        assert PEND_PRAZO in sugestao_oars
+
+        # 5) Clica em "Usar na minha resposta": o botão acende (✓) e leva o texto para a caixa da Marina
+        at.button(key=f"usar_{chamado_id}").click().run()
+        assert not at.exception
+        assert at.session_state["estado_chamados"][chamado_id]["usou_sugestao"] is True
+        assert at.button(key=f"usar_{chamado_id}").label.startswith("✓ ")
+        assert at.button(key=f"ok_{chamado_id}").disabled is True
+
+        # 6) Marina preenche apenas o [PRAZO DE RETORNO], mantendo os [ ] da solução provisória
+        texto_marina = at.text_area(key=f"resp_ui_{chamado_id}").value.replace(PEND_PRAZO, "às 16h30 de hoje")
+        at.text_area(key=f"resp_ui_{chamado_id}").set_value(texto_marina).run()
+        assert not at.exception
+        assert at.button(key=f"ok_{chamado_id}").disabled is False
+
+

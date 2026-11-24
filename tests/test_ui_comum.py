@@ -194,3 +194,11 @@ def test_fila_base_gemini_exibe_progresso_e_reaproveita_cache_entre_idiomas(monk
         slot.empty.assert_called_once()
     finally:
         ui_comum.fila_base.clear()
+
+
+def test_resolver_arroba_rafael_substitui_nome_do_paciente():
+    msg = "Olá, Sr. @ !\nAtenciosamente,\nMarina"
+    assert ui_comum.resolver_arroba_rafael("C01", msg) == "Olá, Sr. Carlos !\nAtenciosamente,\nMarina"
+    assert ui_comum.resolver_arroba_rafael("C02", msg) == "Olá, Sr. Ana Souza !\nAtenciosamente,\nMarina"
+    assert ui_comum.resolver_arroba_rafael("C01", None) == ""
+

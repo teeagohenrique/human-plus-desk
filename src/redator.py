@@ -20,6 +20,7 @@ PEND_PRAZO = "[PRAZO DE RETORNO: a analista preenche]"
 PEND_PROVISORIA = "[SOLUÇÃO PROVISÓRIA, se houver: a analista preenche]"
 
 _PLACEHOLDER = re.compile(r"\[[^\]]*\]")
+_PENDENCIA_ANALISTA = re.compile(r"\[[^\]]*(?:analista\s+preenche|analyst\s+fills)[^\]]*\]", re.IGNORECASE)
 _PROMESSA = re.compile(
     r"\b(?:retorno|retornamos|resolvo|resolvemos|entrego|entregamos|normalizo|normalizamos|envio|enviamos)\b"
     r"[^.!?]{0,40}\b(?:até|em|às|as|hoje|amanhã)\b"
@@ -124,3 +125,47 @@ def gerar_rascunho(
         passou_guardrail=ok,
         feedback_guardrail="" if ok else retorno,
     )
+
+
+def pendencias_abertas(texto: str) -> list[str]:
+    """Retorna apenas os marcadores que ainda exigem preenchimento da analista.
+
+    Quando a solução provisória vem do acervo entre `[ ]` (ex.: `[webmail corporativo]`),
+    ela já está preenchida e editável pela analista, portanto não bloqueia o registro;
+    apenas `[PRAZO DE RETORNO: a analista preenche]` (ou outro marcador com
+    `analista preenche`) permanece como pendência obrigatória.
+    """
+    return _PENDENCIA_ANALISTA.findall(texto or "")
+
+
+def formatar_sugestao_acervo(triagem: Triagem, solucao_provisoria: str) -> str:
+    """Monta a sugestão estruturada com a solução provisória do acervo e o `@` do paciente.
+
+    Substitui `[SOLUÇÃO PROVISÓRIA, se houver: a analista preenche]` por
+    `[<solucao_provisoria>]` e mantém apenas `[PRAZO DE RETORNO: a analista preenche]`
+    para a Marina preencher com base na simulação de tempo do acervo.
+    """
+    prazo = next((m.trecho for m in triagem.motivos_urgencia if m.sinal == "prazo"), None)
+    trecho_prazo = (
+        f"e a importância de cumprir o prazo estabelecido ({prazo})"
+        if prazo
+        else "e a importância de restabelecer o seu atendimento com rapidez"
+    )
+    resumo = RESUMOS.get(triagem.intencao, "uma instabilidade no sistema")
+    solucao_limpa = solucao_provisoria.strip().strip("[]")
+    return (
+        "Olá, Sr. @ !\n"
+        f"Compreendemos a urgência da situação {trecho_prazo}. "
+        f"Identificamos que o problema está relacionado a {resumo} e nossa equipe técnica "
+        "já está trabalhando para solucioná-lo.\n"
+        f"Enquanto a correção definitiva não é concluída, recomendamos utilizar "
+        f"[{solucao_limpa}], permitindo a continuidade das suas atividades.\n"
+        f"Nossa previsão é de retornar até {PEND_PRAZO}, com uma atualização sobre o "
+        "andamento da solicitação e as providências adotadas.\n"
+        "Agradecemos pela compreensão e reforçamos nosso compromisso em oferecer o suporte "
+        "necessário para resolver essa situação com a maior brevidade possível.\n"
+        "Atenciosamente,\n"
+        "Marina\n"
+        "Analista de Suporte ao Cliente | Human+Desk"
+    )
+

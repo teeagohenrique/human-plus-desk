@@ -1,5 +1,12 @@
 from src.mascara import mascarar
-from src.redator import PEND_PRAZO, gerar_rascunho, validar_rascunho
+from src.redator import (
+    PEND_PRAZO,
+    PEND_PROVISORIA,
+    formatar_sugestao_acervo,
+    gerar_rascunho,
+    pendencias_abertas,
+    validar_rascunho,
+)
 from src.triagem import triar
 
 CARLOS = ("Bom dia, aqui é o Carlos. O sistema de faturamento travou pela terceira vez "
@@ -70,3 +77,20 @@ def test_rascunho_reage_a_leitura_e_palpites_da_percepcao():
     for chave in LEITURAS:
         r = gerar_rascunho(CARLOS, t, palpites=palpites, leitura=chave)
         assert r.passou_guardrail, (chave, r.feedback_guardrail)
+
+
+def test_formatar_sugestao_acervo_substitui_solucao_provisoria_e_mantem_prazo_e_arroba():
+    t = triar(CARLOS)
+    solucao = "acesso alternativo ao módulo de faturamento pela versão web de contingência"
+    texto = formatar_sugestao_acervo(t, solucao)
+
+    assert "Olá, Sr. @ !" in texto
+    assert f"[{solucao}]" in texto
+    assert PEND_PROVISORIA not in texto
+    assert PEND_PRAZO in texto
+    assert "Marina\nAnalista de Suporte ao Cliente | Human+Desk" in texto
+    assert pendencias_abertas(texto) == [PEND_PRAZO]
+
+    respondido = texto.replace(PEND_PRAZO, "às 16h30 de hoje")
+    assert pendencias_abertas(respondido) == []
+
