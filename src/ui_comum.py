@@ -12,6 +12,7 @@ from pathlib import Path
 import altair as alt
 import streamlit as st
 
+from src import acervo
 from src.painel import carregar_historico, montar_fila
 from src.percepcao import JANELA_DIAS, LEITURAS
 
@@ -119,6 +120,18 @@ def traduzir_palpite(palpite, txt: dict) -> tuple[str, str]:
         return palpite.hipotese, perg
     n_ev = len(getattr(palpite, "evidencias", ()) or ())
     return hip_tpl.format(n=n_ev, dias=JANELA_DIAS), perg
+
+
+def linha_acervo(topico_id: str | None, palavras: list[str] | None, txt: dict) -> str:
+    """Linha da Análise Contextual que liga o problema ao tópico do acervo (ou '' se não houver)."""
+    topico = acervo.obter_topico(topico_id) if topico_id else None
+    if topico is None:
+        return ""
+    partes = [f"{txt['acervo_label']}: {topico.material_titulo} › {topico.titulo}"]
+    if palavras:
+        partes.append(f"{txt['acervo_words']}: {', '.join(palavras)}")
+    partes.append(f"{txt['acervo_solution']}: {topico.solucao_provisoria}")
+    return " | ".join(partes)
 
 
 def traduzir_hipotese_salva(texto: str, n_evidencias: int, txt: dict) -> str:

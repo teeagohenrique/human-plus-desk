@@ -13,6 +13,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from src import acervo
 from src.redator import _ROTULO
 from src.triagem import Motivo, Triagem, triar
 
@@ -55,6 +56,9 @@ class Palpite(BaseModel):
     pergunta_confirmacao: str
     leituras: list[str]  # ids de LEITURAS, mais prováveis primeiro (até 5)
     sugere_subir_urgencia: bool = False
+    # Ligação com o acervo (só na hipótese de necessidade não dita)
+    acervo_topico_id: str | None = None
+    acervo_palavras: list[str] = Field(default_factory=list)
 
 
 def _leituras(sinais: set[str], pelo_historico: bool) -> list[str]:
@@ -95,12 +99,15 @@ def perceber(texto_mascarado: str, triagem: Triagem, historico: list[Historico] 
     # 1) Necessidade não dita: tem prazo e não pede solução provisória
     prazo = next((m for m in triagem.motivos_urgencia if m.sinal == "prazo"), None)
     if prazo and "provisór" not in texto_mascarado.lower() and "alternativ" not in texto_mascarado.lower():
+        achado = acervo.buscar(texto_mascarado, triagem.intencao)
         palpites.append(Palpite(
             tipo="necessidade_nao_dita",
             hipotese="Pode ser que, além da correção, ajude uma solução provisória para cumprir o prazo mencionado.",
             evidencias=[prazo], confianca="media",
             pergunta_confirmacao="Existe um caminho provisório que ajudaria a cumprir esse prazo antes da correção definitiva?",
             leituras=_leituras(sinais, bool(prev)),
+            acervo_topico_id=achado.topico.id if achado else None,
+            acervo_palavras=achado.palavras if achado else [],
         ))
 
     # 2) Padrão entre chamados: 2+ chamados anteriores com a mesma intenção na janela

@@ -207,7 +207,8 @@ def detalhes_supervisao(item: ItemFila, leitura: str | None, leitura_livre: str 
         "leitura_livre": leitura_livre or None,
         "trechos": [_ev(m) for m in item.triagem.motivos_urgencia + item.triagem.motivos_intencao],
         "hipoteses": [
-            {"hipotese": p.hipotese, "confianca": p.confianca, "evidencias": [_ev(e) for e in p.evidencias]}
+            {"hipotese": p.hipotese, "confianca": p.confianca, "evidencias": [_ev(e) for e in p.evidencias],
+             "acervo_topico_id": p.acervo_topico_id, "acervo_palavras": p.acervo_palavras}
             for p in item.palpites
         ],
         "rascunho_ia": rascunho_ia,

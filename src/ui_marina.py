@@ -31,6 +31,7 @@ from src.ui_comum import (
     LOG,
     fila_base,
     formatar_data_hora,
+    linha_acervo,
     nome_sinal,
     traduzir_hipotese_salva,
     traduzir_leitura,
@@ -177,6 +178,9 @@ def _render_supervisao(
             f"{nome_sinal(e['sinal'], txt)}: “{e['trecho']}”"
             for e in h.get("evidencias", [])
         )
+        extra = linha_acervo(h.get("acervo_topico_id"), h.get("acervo_palavras"), txt)
+        if extra:
+            ev_texto = f"{ev_texto} | {extra}" if ev_texto else extra
         itens_sup.append(
             {
                 "titulo": traduzir_hipotese_salva(h["hipotese"], len(h.get("evidencias", [])), txt),
@@ -322,10 +326,14 @@ def _etapa_analise(item, txt: dict) -> None:
     itens_hip = []
     for p in item.palpites:
         hip_txt, perg_txt = traduzir_palpite(p, txt)
+        detalhe = f"{txt['confirm_q']} {perg_txt}"
+        extra = linha_acervo(p.acervo_topico_id, p.acervo_palavras, txt)
+        if extra:
+            detalhe = f"{detalhe} | {extra}"
         itens_hip.append(
             {
                 "titulo": hip_txt,
-                "detalhe": f"{txt['confirm_q']} {perg_txt}",
+                "detalhe": detalhe,
                 "badge": niveis.get(p.confianca, p.confianca),
                 "alerta": txt["raise_warn"] if p.sugere_subir_urgencia else "",
             }
