@@ -158,6 +158,14 @@ def test_render_language_selector_alterna_idioma():
         mock_rerun.assert_called_once()
 
 
+def test_definir_idioma_callback_atualiza_antes_do_rerun():
+    """O callback on_click troca o idioma antes de o popover ser instanciado no rerun."""
+    fake_state = {"lang": "PT"}
+    with patch.object(tema_dxc.st, "session_state", fake_state):
+        tema_dxc._definir_idioma("EN")
+        assert fake_state["lang"] == "EN"
+
+
 def _ctx_falso():
     ctx = MagicMock()
     ctx.__enter__.return_value = None
