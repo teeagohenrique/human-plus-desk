@@ -59,3 +59,24 @@ def test_nao_mascara_siglas_sistemas_ou_dias_como_nome():
     r = mascarar(texto)
     assert "[NOME]" not in r.texto
     assert "Excel" in r.texto and "VPN" in r.texto and "RH" in r.texto and "reunião das 14h" in r.texto
+
+
+def test_mascara_nome_fora_dos_prefixos_com_ner_local():
+    texto = "O relatório foi revisado por Beatriz Lima antes do envio."
+    r = mascarar(texto)
+    assert "Beatriz Lima" not in r.texto
+    assert r.texto == "O relatório foi revisado por [NOME] antes do envio."
+    assert "NOME" in r.tipos_encontrados
+
+
+def test_ner_nao_transforma_verbos_e_saudacoes_em_nome():
+    for texto in [
+        "Procurei no menu e não achei.",
+        "Abri dois chamados semana passada.",
+        "CNPJ 12.345.678/0001-95",
+        "Olá, tudo bem?",
+    ]:
+        assert "[NOME]" not in mascarar(texto).texto, texto
+    r = mascarar("Favor verificar o chamado do Sr. João Pereira.")
+    assert "Favor" in r.texto
+    assert "João Pereira" not in r.texto

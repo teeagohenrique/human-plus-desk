@@ -1,14 +1,15 @@
 """Máscara de dados pessoais (LGPD): roda ANTES de qualquer agente ver o texto.
 
-Limites conhecidos (v2 — heurística local offline):
-- Cobre padrões com formato fixo: e-mail, CNPJ, CPF, telefone BR.
-- Mascara nomes de pessoas por HEURÍSTICA LOCAL (tratamentos como Sr./Sra./Dr.,
-  apresentações como "aqui é o ...", "meu nome é ...", e atribuições como
-  "para a ...", "máquina da ..."). É um ponto de partida 100% offline: casos
-  fora desses contextos ainda exigem NER (ex.: Presidio + spaCy) em fase futura,
-  sem mudar a interface `mascarar()`.
-- NÃO valida os dígitos verificadores do CPF/CNPJ: mascara por formato (prefere
-  mascarar demais a vazar).
+Camadas aplicadas nesta ordem, sempre offline:
+- padrões com formato fixo: e-mail, CNPJ, CPF, telefone BR;
+- heurística local de nomes com prefixos explícitos (Sr./Sra./Dr., "aqui é o",
+  "meu nome é", "para a", "máquina da" etc.);
+- NER local (Presidio + spaCy em português) para nomes fora desses prefixos,
+  pela mesma interface `mascarar()`. Se o modelo falhar, a heurística anterior
+  continua valendo.
+
+NÃO valida os dígitos verificadores do CPF/CNPJ: mascara por formato (prefere
+mascarar demais a vazar).
 """
 import re
 
@@ -68,6 +69,15 @@ def _mascarar_nomes(texto: str) -> tuple[str, int]:
     return texto, total
 
 
+def _nomes_por_ner(texto: str) -> list[tuple[int, int]]:
+    """Importa o NER sob demanda; indisponibilidade não derruba a máscara."""
+    try:
+        from src.ner_local import nomes_encontrados
+    except Exception:
+        return []
+    return nomes_encontrados(texto)
+
+
 def mascarar(texto: str) -> ResultadoMascara:
     encontrados: list[str] = []
     for tipo, padrao in PADROES:
@@ -75,4 +85,10 @@ def mascarar(texto: str) -> ResultadoMascara:
         encontrados.extend([tipo] * n)
     texto, n_nomes = _mascarar_nomes(texto)
     encontrados.extend(["NOME"] * n_nomes)
+    for inicio, fim in reversed(_nomes_por_ner(texto)):
+        trecho = texto[inicio:fim]
+        if not trecho or all(palavra in _NAO_NOMES for palavra in trecho.split()):
+            continue
+        texto = texto[:inicio] + "[NOME]" + texto[fim:]
+        encontrados.append("NOME")
     return ResultadoMascara(texto=texto, tipos_encontrados=encontrados)

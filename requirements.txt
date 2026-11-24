@@ -5,6 +5,9 @@ streamlit>=1.40
 altair>=5.0  # gráficos da tela do Rafael (src/ui_rafael.py)
 pytest>=8.0
 google-genai>=3.6
+presidio-analyzer>=2.2
+spacy>=3.8,<3.9
+pt-core-news-sm>=3.8,<3.9  # modelo PT do NER local (instalado via pip)
 
 # Desenvolvimento (lint e cobertura — nao necessarios para rodar a aplicacao)
 ruff>=0.17
