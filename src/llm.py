@@ -120,7 +120,10 @@ def _contadores() -> tuple[dict[str, int], dict[str, int]]:
 
 
 def zerar_contador_triagem() -> None:
-    """Zera as categorias antes de uma medição."""
+    """Zera as categorias antes de uma medição.
+
+    API legada mantida apenas para os testes; a CLI usa `zerar_contadores()`.
+    """
     triagem, _ = _contadores()
     for chave in triagem:
         triagem[chave] = 0

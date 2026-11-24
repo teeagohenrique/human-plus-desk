@@ -21,9 +21,10 @@ from presidio_analyzer.nlp_engine import SpacyNlpEngine
 
 IDIOMA = "pt"
 MODELO_SPACY = "pt_core_news_sm"
+# O SpacyNlpEngine converte o rótulo PER do spaCy para PERSON nos NlpArtifacts:
+# a entidade pedida ao Presidio e o rótulo nos artefatos são o mesmo valor.
 ENTIDADE = "PERSON"
-# O SpacyNlpEngine converte o rótulo PER do spaCy para PERSON nos NlpArtifacts.
-ROTULO_PRESIDIO = "PERSON"
+ROTULO_PRESIDIO = ENTIDADE
 CONFIANCA = 0.85
 
 # Observados em chamados de service desk: o modelo marca como PER mesmo sem
