@@ -109,3 +109,49 @@ def test_app_preserva_pagina_e_controles_ao_trocar_idioma(itens_regras):
         assert at.session_state["tema_ui"] == "Claro"
         assert at.session_state["sim_toggle_ui"] is True
         assert TXT["title_rafael"] in [titulo.value for titulo in at.title]
+
+
+def test_app_preserva_estado_do_chamado_ao_trocar_idioma(itens_regras):
+    chamado_id = itens_regras[0].id
+    chaves = [f"camada_{chamado_id}", f"leit_ui_{chamado_id}", f"urg_ui_{chamado_id}"]
+    with _app(itens_regras) as (at, _):
+        at.run(timeout=10)
+        at.button(key="btn_kpi_fila").click().run()
+        at.button(key=f"go2_{chamado_id}").click().run()
+        at.segmented_control(key=f"camada_{chamado_id}").set_value("decisao").run()
+        at.pills(key=f"urg_ui_{chamado_id}").set_value("alta").run()
+        assert at.session_state[f"leit_ui_{chamado_id}"] is not None
+
+        antes = {chave: at.session_state[chave] for chave in chaves}
+        at.button(key="set_lang_en").click().run()
+        assert not at.exception
+        assert {chave: at.session_state[chave] for chave in chaves} == antes
+        assert I18N["EN"]["title_marina"] in [titulo.value for titulo in at.title]
+
+        at.button(key="set_lang_pt").click().run()
+        assert not at.exception
+        assert {chave: at.session_state[chave] for chave in chaves} == antes
+        assert TXT["title_marina"] in [titulo.value for titulo in at.title]
+
+
+def test_app_preserva_resposta_digitada_ao_trocar_idioma(itens_regras):
+    chamado_id = itens_regras[0].id
+    chaves = [f"camada_{chamado_id}", f"resp_ui_{chamado_id}"]
+    with _app(itens_regras) as (at, _):
+        at.run(timeout=10)
+        at.button(key="btn_kpi_fila").click().run()
+        at.button(key=f"go2_{chamado_id}").click().run()
+        at.segmented_control(key=f"camada_{chamado_id}").set_value("resposta").run()
+        at.text_area(key=f"resp_ui_{chamado_id}").set_value("resposta de teste").run()
+        antes = {chave: at.session_state[chave] for chave in chaves}
+        assert antes[f"resp_ui_{chamado_id}"] == "resposta de teste"
+
+        at.button(key="set_lang_en").click().run()
+        assert not at.exception
+        assert {chave: at.session_state[chave] for chave in chaves} == antes
+        assert I18N["EN"]["title_marina"] in [titulo.value for titulo in at.title]
+
+        at.button(key="set_lang_pt").click().run()
+        assert not at.exception
+        assert {chave: at.session_state[chave] for chave in chaves} == antes
+        assert TXT["title_marina"] in [titulo.value for titulo in at.title]

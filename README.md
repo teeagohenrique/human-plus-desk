@@ -8,7 +8,7 @@ Assistente de service desk em Python que ajuda a analista a priorizar chamados e
 - **Governança antes de IA:** CPF, CNPJ, e-mail, telefone e nomes próprios são mascarados antes de qualquer agente ver o texto ou de haver envio externo — padrões fixos, heurística de prefixos e NER local com Presidio + spaCy PT (`src/mascara.py`, `src/ner_local.py`).
 - **Humano no controle:** urgência sem pré-seleção, `[colchetes]` obrigatórios no rascunho e decisão 100% humana na tela (`src/ui_marina.py`, `app.py`).
 - **Resiliência observável:** regras offline e Gemini atrás da mesma interface, fallback silencioso e origem da resposta mostrada por chamado (`src/llm.py`, `app.py`).
-- **Engenharia verificada:** 211 testes coletados no HEAD `7142d0e` (`pytest --collect-only -q`), incluindo `AppTest` para a navegação e para as telas Marina/Rafael (`tests/`), `ruff` e `compileall` limpos. CI configurado para `ruff` + `compileall` + `pytest` em cada push/PR (GitHub Actions).
+- **Engenharia verificada:** 213 testes coletados (`pytest --collect-only -q`), incluindo `AppTest` para a navegação, para as telas Marina/Rafael e para a preservação de estado por chamado na troca PT/EN (`tests/`), `ruff` e `compileall` limpos. A medição anterior registrou 211 testes no HEAD `7142d0e`. CI configurado para `ruff` + `compileall` + `pytest` em cada push/PR (GitHub Actions).
 
 ## O problema
 A analista abre dezenas de chamados sem saber qual é mais urgente e escreve respostas sob pressão, com risco de prometer prazos que não pode cumprir.
@@ -105,7 +105,7 @@ Histórico: na amostra de 16 chamados, Regras 3/16 (19%) e 10/16 (62%) contra Ge
 - `app.py` importa `I18N`, `render_dxc_theme`, `render_dxc_logo` e `render_language_selector` de `src/tema_dxc.py`; não mantém cópia local de CSS, SVG ou traduções. `get_text` fica disponível no módulo para rótulos pontuais sem duplicar o dicionário.
 - O seletor PT/EN fica no topo da área principal; o tema Claro/Escuro fica na barra lateral (`tema_ui`). As chaves de widgets usadas pela agent API (`urg_ui_C15`, callbacks e filtros) não mudaram.
 - O módulo de tema não lê segredos: a configuração continua restrita a `GEMINI_API_KEY` e `GEMINI_MODEL` em `.env` (`src/config.py`). Use `.env.example` como referência; valores iguais a `sua_chave_aqui` são ignorados (`src/config.py :: carregar_env`).
-- `tests/test_tema_dxc.py` cobre a paridade recursiva das 176 chaves (incluindo os 9 blocos aninhados), o fallback de tradução, o CSS dos dois modos, o SVG e a troca de idioma. Suíte total: **211 testes coletados** (`pytest --collect-only -q`, HEAD `7142d0e`).
+- `tests/test_tema_dxc.py` cobre a paridade recursiva das 176 chaves (incluindo os 9 blocos aninhados), o fallback de tradução, o CSS dos dois modos, o SVG e a troca de idioma; `tests/test_app_navegacao.py` cobre a preservação de navegação, motor, toggle e estado por chamado na troca PT/EN. Suíte total: **213 testes coletados** (`pytest --collect-only -q`).
 
 ## Próximos passos
 1. Manter os 8 fallbacks da medição anterior como histórico sem causa atribuída: a nova medição instrumentada registrou `Fallbacks: nenhum` e não os reproduziu, então não há base para atribuir a queda anterior a 429/503 ou à validação de trechos.
