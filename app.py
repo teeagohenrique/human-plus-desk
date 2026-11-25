@@ -28,6 +28,8 @@ carregar_env(RAIZ / ".env")
 
 # Cria human_desk.db na raiz do projeto e reconcilia decisões antigas do JSONL.
 repositorio.init_db(concluidos=ids_decididos(auditoria.ler(LOG)))
+repositorio.exportar_auditoria_pendente(LOG)
+
 
 _, coluna_idioma = st.columns([9.4, 1.6])
 with coluna_idioma:

@@ -22,6 +22,9 @@ def _app(itens):
     with ExitStack() as pilha:
         mocks = {
             "init_db": pilha.enter_context(patch("src.repositorio.init_db")),
+            "exportar_auditoria_pendente": pilha.enter_context(
+                patch("src.repositorio.exportar_auditoria_pendente")
+            ),
             "carregar_env": pilha.enter_context(patch("src.config.carregar_env")),
         }
         pilha.enter_context(patch("src.ui_marina.fila_base", return_value=itens))
@@ -43,6 +46,7 @@ def test_app_abre_sem_excecao_e_sem_gravar_db(itens_regras):
         assert not at.exception
         # A linha do app.py rodou, mas contra o mock: nada foi escrito no SQLite.
         mocks["init_db"].assert_called_once()
+        mocks["exportar_auditoria_pendente"].assert_called_once()
         mocks["carregar_env"].assert_called_once()
 
 

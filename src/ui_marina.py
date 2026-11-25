@@ -19,11 +19,17 @@ from src.painel import (
     classificar_resposta,
     detalhes_supervisao,
     leituras_do_item,
+    payload_decisao,
     rascunho_adaptado,
-    registrar_decisao,
 )
 from src.percepcao import trechos_da_leitura
-from src.redator import _PLACEHOLDER, formatar_sugestao_acervo, pendencias_abertas
+from src.redator import (
+    _PLACEHOLDER,
+    PEND_PRAZO,
+    PEND_PRAZO_EN,
+    formatar_sugestao_acervo,
+    pendencias_abertas,
+)
 from src.tema_dxc import render_card_cascata
 from src.ui_comum import (
     CONFIG,
@@ -60,9 +66,30 @@ def _ao_trocar_camada(item_id: str) -> None:
         estados[item_id]["aba_acervo_aberta"] = False
 
 
-def _aplicar_acervo_na_sugestao(item, estado: dict, topico: acervo.Topico) -> str:
-    """Injeta a solução provisória do acervo na sugestão OARS do chamado."""
-    texto_estruturado = formatar_sugestao_acervo(item.triagem, topico.solucao_provisoria)
+def _aplicar_acervo_na_sugestao(
+    item,
+    estado: dict,
+    topico: acervo.Topico,
+    solucao_override: str | None = None,
+    prazo_override: str | None = None,
+) -> str:
+    """Injeta a solução provisória (e o prazo simulado, se clicado) na sugestão OARS."""
+    idioma = str(st.session_state.get("lang", "PT"))
+    solucao = (
+        solucao_override
+        if solucao_override is not None
+        else (estado.get("solucao_simulada") or acervo.texto_topico(topico, "solucao_provisoria", idioma))
+    )
+    texto_estruturado = str(
+        formatar_sugestao_acervo(
+            item.triagem, solucao, idioma=idioma, chamado_mascarado=item.texto_mascarado
+        )
+    )
+    prazo_efetivo = prazo_override if prazo_override is not None else estado.get(f"prazo_sim_{item.id}")
+    if prazo_efetivo:
+        texto_estruturado = texto_estruturado.replace(PEND_PRAZO, f"[{prazo_efetivo}]").replace(
+            PEND_PRAZO_EN, f"[{prazo_efetivo}]"
+        )
     estado["acervo_topico_id"] = topico.id
     estado["sugestao_acervo"] = texto_estruturado
     leitura_reg, _ = _leitura_para_registro(estado)
@@ -208,6 +235,8 @@ def _render_supervisao(
     d: dict,
     chave_unica: str,
     subtitulo: str | None = None,
+    item=None,
+    origem: str | None = None,
 ) -> None:
     """Registro de supervisão (somente leitura) com exibição em cascata.
 
@@ -236,7 +265,7 @@ def _render_supervisao(
             "detalhe": f"{txt['sup_reading']}: {leitura_desc}",
         }
     ]
-    for h in d.get("hipoteses") or []:
+    for indice, h in enumerate(d.get("hipoteses") or []):
         ev_texto = " | ".join(
             f"{nome_sinal(e['sinal'], txt)}: “{e['trecho']}”"
             for e in h.get("evidencias", [])
@@ -251,6 +280,21 @@ def _render_supervisao(
                 "detalhe": ev_texto,
             }
         )
+        # Botão "Consultar solução do Acervo" dentro da caixa, junto à hipótese.
+        if item is not None and origem:
+            itens_sup.append(
+                {
+                    "titulo": txt["acervo_open_btn_sup"],
+                    "badge": "",
+                    "detalhe": "",
+                    "button": {
+                        "label": txt["acervo_open_btn_sup"],
+                        "key": f"abrir_acerto_sup_{item.id}_{indice}",
+                        "on_click": _abrir_acervo,
+                        "args": (item, origem),
+                    },
+                }
+            )
 
     render_card_cascata(
         txt["box_supervision"],
@@ -430,6 +474,49 @@ def _etapa_analise(item, txt: dict) -> None:
                   on_click=_ir_para_etapa, args=(item.id, "decisao"))
 
 
+
+
+def gerar_texto_com_passos_marcados(topico, passos, passos_marcados, idioma="PT", txt=None):
+    """Gera o texto do 'Simular melhor resposta' a partir dos passos marcados.
+
+    Usa SOMENTE os passos marcados, respeitando as regras de cada passo:
+      - passo 1: as quedas também afetam outros usuários;
+      - passo 2: acesso pelo portal web seguro, sem VPN;
+      - passo 3: rede alternativa só se permitido pela política; nunca credenciais;
+      - passo 4: encaminhado à equipe de redes com os horários das quedas.
+    """
+    pt = {
+        1: "Identificamos que as quedas também afetam outros usuários.",
+        2: "Como medida alternativa, orientamos o acesso aos sistemas pelo portal web seguro, sem utilização de VPN.",
+        3: "Sugerimos uma rede alternativa, se permitido pela política da organização.",
+        4: "O problema já foi encaminhado à equipe de redes, juntamente com os horários das interrupções, para análise.",
+    }
+    en = {
+        1: "We identified that the outages also affect other users.",
+        2: "As an alternative measure, we guided access to the systems via the secure web portal, without using VPN.",
+        3: "We suggest an alternative network, if permitted by the organization's policy.",
+        4: "The issue has already been forwarded to the network team, along with the outage times, for analysis.",
+    }
+    idioma_norm = idioma.upper()
+    labels = pt if idioma_norm == "PT" else en
+    marcacoes = (
+        passos_marcados.get(topico.id, {})
+        if isinstance(passos_marcados, dict) and topico.id in passos_marcados
+        else (passos_marcados or {})
+    )
+    partes = []
+    for indice in range(1, len(passos) + 1):
+        if marcacoes.get(indice, False):
+            frase = labels.get(indice, "")
+            if frase:
+                partes.append(frase)
+    partes.append(
+        "No momento, recomendamos aguardar o retorno da equipe técnica."
+        if idioma_norm == "PT"
+        else "For now, we recommend awaiting the technical team's response."
+    )
+    return " ".join(partes)
+
 def _etapa_acervo(item, estado: dict, txt: dict) -> None:
     """Aba do Acervo: material descritivo, simulador de tempo, voltar e ir para resposta."""
     topico, palavras = topico_do_item(item)
@@ -438,26 +525,48 @@ def _etapa_acervo(item, estado: dict, txt: dict) -> None:
                   on_click=_voltar_do_acervo, args=(item.id,))
         return
 
+    idioma = txt.get("lang_code", "PT")
+    titulo = acervo.texto_topico(topico, "titulo", idioma)
+    titulo_material = acervo.texto_material(topico.material_id, "titulo", idioma)
+    problema = acervo.texto_topico(topico, "problema", idioma)
+    solucao = acervo.texto_topico(topico, "solucao_provisoria", idioma)
+    passos = acervo.texto_topico(topico, "passos", idioma)
+    cenarios = acervo.cenarios_topico(topico, idioma)
     with st.container(border=True):
         st.markdown(f'<span class="hpd-eyebrow">{txt["acervo_tab_title"]}</span>', unsafe_allow_html=True)
-        st.markdown(f"#### `{topico.id}` · {topico.titulo}")
-        st.caption(f"**{txt['acervo_material_lbl']}:** {topico.material_id} — {topico.material_titulo}")
+        st.caption(txt["acervo_fictional_notice"])
+        st.markdown(f"#### `{topico.id}` · {titulo}")
+        st.caption(f"**{txt['acervo_material_lbl']}:** {topico.material_id} — {titulo_material}")
         if palavras:
             st.caption(f"**{txt['acervo_words'].capitalize()}:** {', '.join(palavras)}")
-        st.markdown(f"**{txt['acervo_problem_lbl']}**\n\n{topico.problema}")
-        st.info(f"**{txt['acervo_workaround_lbl']}:** `[{topico.solucao_provisoria}]`")
+        st.markdown(f"**{txt['acervo_problem_lbl']}**\n\n{problema}")
+        st.info(f"**{txt['acervo_workaround_lbl']}:** `[{solucao}]`")
         st.markdown(f"**{txt['acervo_steps_lbl']}**")
-        for indice, passo in enumerate(topico.passos, start=1):
-            st.markdown(f"{indice}. {passo}")
+        estado.setdefault("passos_marcados", {})
+        estado["passos_marcados"].setdefault(topico.id, {})
+        for indice, passo in enumerate(passos, start=1):
+            chave = f"passo_{topico.id}_{indice}"
+            estado["passos_marcados"][topico.id][indice] = st.checkbox(
+                passo, key=chave, value=estado["passos_marcados"][topico.id].get(indice, False)
+            )
+
+        # --- botão de simulação dos passos marcados (Etapa 4) ---
+        st.button(
+            txt.get("acervo_sim_btn_simular", "Simular melhor resposta com os passos marcados"),
+            key=f"simular_melhor_resposta_{item.id}",
+            width="stretch",
+            on_click=_simular_melhor_resposta,
+            args=(item, estado, txt),
+        )
 
     with st.container(border=True):
         st.markdown(f"**{txt['acervo_sim_title']}**")
         linhas_tempo = [
             {
-                txt["acervo_sim_scenario"]: f.cenario,
-                txt["acervo_sim_range"]: f"{f.min}–{f.max} min",
+                txt["acervo_sim_scenario"]: cenario,
+                txt["acervo_sim_range"]: f"{faixa.min}–{faixa.max} min",
             }
-            for f in topico.tabela_tempo
+            for faixa, cenario in zip(topico.tabela_tempo, cenarios)
         ]
         st.table(linhas_tempo)
 
@@ -469,7 +578,7 @@ def _etapa_acervo(item, estado: dict, txt: dict) -> None:
             txt["acervo_sim_choose"],
             options=opcoes_idx,
             default=idx_padrao,
-            format_func=lambda idx: f"{topico.tabela_tempo[idx].cenario} ({topico.tabela_tempo[idx].min}–{topico.tabela_tempo[idx].max} min)",
+            format_func=lambda idx: f"{cenarios[idx]} ({topico.tabela_tempo[idx].min}–{topico.tabela_tempo[idx].max} min)",
             key=f"sim_cenario_{item.id}",
         )
         if escolhido_idx is None:
@@ -479,11 +588,18 @@ def _etapa_acervo(item, estado: dict, txt: dict) -> None:
         lang = txt.get("lang_code", "PT")
         de_str = formatar_data_hora(est.previsto_de.isoformat(), lang=lang)
         ate_str = formatar_data_hora(est.previsto_ate.isoformat(), lang=lang)
-        st.success(
-            txt["acervo_sim_result"].format(
-                de=de_str, ate=ate_str, min=est.minutos_min, max=est.minutos_max,
-            )
+        janela_lbl = txt["acervo_sim_result"].format(
+            de=de_str, ate=ate_str, min=est.minutos_min, max=est.minutos_max
         )
+        # Botão clicável (Etapa 5): ao clicar, preenche o SEGUNDO [ ] (PEND_PRAZO) na sugestão OARS.
+        st.button(
+            f"{txt['acervo_sim_btn_prazo']} · {janela_lbl.replace('**', '')}",
+            key=f"prazo_sim_{item.id}",
+            width="stretch",
+            on_click=_usar_prazo_sim,
+            args=(item, estado, txt),
+        )
+        st.caption(txt["acervo_sim_caveat"])
 
     col_voltar, col_aplicar = st.columns(2, gap="medium")
     with col_voltar:
@@ -504,6 +620,42 @@ def _etapa_acervo(item, estado: dict, txt: dict) -> None:
             args=(item,),
         )
 
+
+
+
+
+
+def _usar_prazo_sim(item, estado: dict, txt: dict) -> None:
+    """Preenche o segundo [ ] (PEND_PRAZO) na sugestão OARS com a janela simulada."""
+    topico, _ = topico_do_item(item)
+    if topico is None:
+        return
+    lang = txt.get("lang_code", "PT")
+    cenario = estado.get("cenario_tempo_idx", 0)
+    est = acervo.estimar(topico, cenario)
+    de_str = formatar_data_hora(est.previsto_de.isoformat(), lang=lang)
+    ate_str = formatar_data_hora(est.previsto_ate.isoformat(), lang=lang)
+    if lang.upper() == "EN":
+        janela = f"{de_str} to {ate_str} ({est.minutos_min} to {est.minutos_max} min)"
+    else:
+        janela = f"{de_str} até {ate_str} ({est.minutos_min} a {est.minutos_max} min)"
+    estado[f"prazo_sim_{item.id}"] = janela
+    _aplicar_acervo_na_sugestao(item, estado, topico, prazo_override=janela)
+
+
+def _simular_melhor_resposta(item, estado: dict, txt: dict) -> None:
+    """Gera a solução a partir dos passos marcados e atualiza a sugestão OARS."""
+    topico, _ = topico_do_item(item)
+    if topico is None:
+        return
+    idioma = txt.get("lang_code", "PT")
+    passos = acervo.texto_topico(topico, "passos", idioma)
+    marcacoes = estado.get("passos_marcados", {}).get(topico.id, {})
+    solucao_simulada = gerar_texto_com_passos_marcados(
+        topico, passos, marcacoes, idioma=idioma, txt=txt
+    )
+    estado["solucao_simulada"] = solucao_simulada
+    _aplicar_acervo_na_sugestao(item, estado, topico, solucao_override=solucao_simulada)
 
 def _etapa_decisao(item, estado: dict, txt: dict, agente: str) -> None:
     t, niveis = item.triagem, txt["niveis"]
@@ -593,6 +745,8 @@ def _etapa_resposta(item, estado: dict, txt: dict, agente: str, provider: str) -
             pacote,
             chave_unica=f"sup_resp_{item.id}",
             subtitulo=txt["box_supervision_hint"],
+            item=item,
+            origem=origem,
         )
         topico_ac, _ = topico_do_item(item)
         if topico_ac is not None:
@@ -629,11 +783,17 @@ def _etapa_resposta(item, estado: dict, txt: dict, agente: str, provider: str) -
 
         if st.button(txt["btn_register"], type="primary", width="stretch", key=f"ok_{item.id}", disabled=bool(faltas)):
             decisao = classificar_resposta(texto_sugestao_ia, resposta)
-            registrar_decisao(
-                LOG, item, decisao, resposta, leitura_registro, leitura_livre, estado["urgencia"], False,
+            payload = payload_decisao(
+                item, decisao, resposta, leitura=leitura_registro,
+                leitura_livre=leitura_livre, urgencia_analista=estado["urgencia"],
                 origem_triagem=item.origem_triagem, origem_rascunho=origem,
             )
-            repositorio.registrar_decisao(item.id, decisao, resposta, agente, detalhes=pacote)
+            repositorio.registrar_decisao(
+                item.id, decisao, resposta, agente, detalhes=pacote,
+                payload_auditoria=payload,
+            )
+            if not repositorio.exportar_auditoria_pendente(LOG):
+                st.warning(txt.get("audit_sync_pending", "Decisão salva; a auditoria será sincronizada depois."))
             st.session_state["estado_chamados"].pop(item.id, None)
             st.toast(txt["toast_registered"].format(id=item.id))
             st.rerun()

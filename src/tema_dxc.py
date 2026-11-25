@@ -701,6 +701,15 @@ def render_card_cascata(
             )
             if item.get("alerta"):
                 st.warning(item["alerta"])
+            _render_btn = item.get("button")
+            if _render_btn:
+                st.button(
+                    _render_btn["label"],
+                    key=_render_btn["key"],
+                    width="stretch",
+                    on_click=_render_btn["on_click"],
+                    args=_render_btn.get("args", ()),
+                )
 
         if total > 1:
             lbl_next = "Mostrar próximo (+1) ↓" if lang == "PT" else "Show next (+1) ↓"
