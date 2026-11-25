@@ -716,13 +716,23 @@ def render_card_cascata(
                     )
                     if item.get("alerta"):
                         st.warning(item["alerta"])
-                    st.button(
-                        _render_btn["label"],
-                        key=_render_btn["key"],
-                        width="stretch",
-                        on_click=_render_btn["on_click"],
-                        args=_render_btn.get("args", ()),
+                    ativo_btn = bool(_render_btn.get("active"))
+                    lbl_btn = _render_btn["label"]
+                    if ativo_btn and not lbl_btn.startswith("✓"):
+                        lbl_btn = f"✓ {lbl_btn}"
+                    cnt_key = (
+                        f"btn_usar_ativo_{_render_btn['key']}"
+                        if ativo_btn
+                        else f"btn_usar_padrao_{_render_btn['key']}"
                     )
+                    with st.container(key=cnt_key):
+                        st.button(
+                            lbl_btn,
+                            key=_render_btn["key"],
+                            width="stretch",
+                            on_click=_render_btn["on_click"],
+                            args=_render_btn.get("args", ()),
+                        )
             else:
                 st.markdown(
                     f'<div class="{classe}">'

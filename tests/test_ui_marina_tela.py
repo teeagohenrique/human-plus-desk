@@ -253,9 +253,22 @@ def test_marina_botao_unico_dentro_da_supervisao_abre_aba_acervo_inclusive_em_re
         assert at.segmented_control(key="camada_C09").value == "acervo"
         assert any("M05-T04" in m.value for m in at.markdown)
 
-        # Ao voltar, retorna exatamente para a Etapa 3 ("resposta")
+        # Ao voltar, retorna exatamente para a Etapa 3 ("resposta") e o botão clicado fica aceso (✓)
         at.button(key="voltar_acervo_C09").click().run()
         assert not at.exception
         assert at.session_state["estado_chamados"]["C09"]["aba_acervo_aberta"] is False
         assert at.session_state["estado_chamados"]["C09"]["camada"] == "resposta"
         assert at.segmented_control(key="camada_C09").value == "resposta"
+        assert at.button(key="abrir_acervo_3_C09").label.startswith("✓ ")
+
+        # Em C01 (3 pareceres), TODAS as 3 caixinhas de parecer trazem o botão do acervo
+        at.radio(key="chamado_ativo_fila").set_value("C01").run()
+        botoes_c01_etapa1 = [b.key for b in at.button if b.key and b.key.startswith("abrir_acervo_1_C01")]
+        assert botoes_c01_etapa1 == ["abrir_acervo_1_C01", "abrir_acervo_1_C01_1", "abrir_acervo_1_C01_2"]
+
+        # Dentro da Aba do Acervo, os botões de simular passos e preencher prazo acendem (✓) ao clicar
+        at.button(key="abrir_acervo_1_C01_2").click().run()
+        at.button(key="simular_melhor_resposta_C01").click().run()
+        assert at.button(key="simular_melhor_resposta_C01").label.startswith("✓ ")
+        at.button(key="prazo_sim_C01").click().run()
+        assert at.button(key="prazo_sim_C01").label.startswith("✓ ")

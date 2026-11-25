@@ -101,7 +101,7 @@ def _aplicar_acervo_na_sugestao(
     return texto_estruturado
 
 
-def _abrir_acervo(item, origem: str) -> None:
+def _abrir_acervo(item, origem: str, parecer_idx: int | None = None) -> None:
     """Abre a aba do Acervo a partir da Análise Contextual ou do Registro e atualiza a sugestão OARS."""
     estado = _estado_item(item)
     topico, _ = topico_do_item(item)
@@ -111,6 +111,10 @@ def _abrir_acervo(item, origem: str) -> None:
     estado["viu_chamado"] = True
     estado["camada_origem_acervo"] = origem_valida
     estado["aba_acervo_aberta"] = True
+    if parecer_idx is not None:
+        clicados = set(estado.get("acervo_pareceres_clicados") or ())
+        clicados.add(parecer_idx)
+        estado["acervo_pareceres_clicados"] = clicados
     st.session_state[f"camada_{item.id}"] = "acervo"
     if topico is not None:
         _aplicar_acervo_na_sugestao(item, estado, topico)
@@ -239,24 +243,6 @@ def _render_indicadores(txt: dict, total: int, qtd_fila: int, qtd_critica: int, 
 
 # ---------------------------------------------------------------- blocos reutilizáveis
 
-def _indice_alvo_acervo(hipoteses: list[dict]) -> int | None:
-    """Escolhe o único parecer que recebe o botão do Acervo dentro da caixa.
-
-    Prioriza o parecer de repetição ('Parece que a repetição pode estar pesando...');
-    se não houver, usa o parecer ligado ao tópico do acervo ou o primeiro disponível.
-    """
-    if not hipoteses:
-        return None
-    for idx, h in enumerate(hipoteses):
-        texto = str(h.get("hipotese", ""))
-        if "repetição pode estar pesando" in texto or h.get("tipo") == "risco_recorrencia":
-            return idx
-    for idx, h in enumerate(hipoteses):
-        if h.get("acervo_topico_id"):
-            return idx
-    return 0
-
-
 def _render_supervisao(
     txt: dict,
     d: dict,
@@ -294,7 +280,7 @@ def _render_supervisao(
     ]
     hipoteses = d.get("hipoteses") or []
     topico_ac = topico_do_item(item)[0] if item is not None else None
-    alvo_btn = _indice_alvo_acervo(hipoteses) if (item is not None and topico_ac is not None) else None
+    clicados = set(_estado_item(item).get("acervo_pareceres_clicados") or ()) if item is not None else set()
 
     for indice, h in enumerate(hipoteses):
         ev_texto = " | ".join(
@@ -309,20 +295,23 @@ def _render_supervisao(
             "badge": niveis.get(h["confianca"], h["confianca"]),
             "detalhe": ev_texto,
         }
-        if indice == alvo_btn:
+        if item is not None and topico_ac is not None:
+            chave_btn = f"abrir_acervo_3_{item.id}" if indice == 0 else f"abrir_acervo_3_{item.id}_{indice}"
             bloco_hip["button"] = {
                 "label": txt["acervo_open_btn_sup"],
-                "key": f"abrir_acervo_3_{item.id}",
+                "key": chave_btn,
+                "active": indice in clicados,
                 "on_click": _abrir_acervo,
-                "args": (item, camada_origem),
+                "args": (item, camada_origem, indice),
             }
         itens_sup.append(bloco_hip)
-    if item is not None and topico_ac is not None and alvo_btn is None:
+    if item is not None and topico_ac is not None and not hipoteses:
         itens_sup[0]["button"] = {
             "label": txt["acervo_open_btn_sup"],
             "key": f"abrir_acervo_3_{item.id}",
+            "active": 0 in clicados,
             "on_click": _abrir_acervo,
-            "args": (item, camada_origem),
+            "args": (item, camada_origem, 0),
         }
 
     render_card_cascata(
@@ -467,11 +456,7 @@ def _etapa_analise(item, txt: dict) -> None:
         )
 
     topico_ac, _ = topico_do_item(item)
-    hips_dict = [
-        {"tipo": p.tipo, "hipotese": p.hipotese, "acervo_topico_id": p.acervo_topico_id}
-        for p in item.palpites
-    ]
-    alvo_hip = _indice_alvo_acervo(hips_dict) if topico_ac is not None else None
+    clicados = set(_estado_item(item).get("acervo_pareceres_clicados") or ())
 
     itens_hip = []
     for idx, p in enumerate(item.palpites):
@@ -486,12 +471,14 @@ def _etapa_analise(item, txt: dict) -> None:
             "badge": niveis.get(p.confianca, p.confianca),
             "alerta": txt["raise_warn"] if p.sugere_subir_urgencia else "",
         }
-        if idx == alvo_hip:
+        if topico_ac is not None:
+            chave_btn = f"abrir_acervo_1_{item.id}" if idx == 0 else f"abrir_acervo_1_{item.id}_{idx}"
             bloco_p["button"] = {
                 "label": txt["acervo_open_btn_sup"],
-                "key": f"abrir_acervo_1_{item.id}",
+                "key": chave_btn,
+                "active": idx in clicados,
                 "on_click": _abrir_acervo,
-                "args": (item, "chamado"),
+                "args": (item, "chamado", idx),
             }
         itens_hip.append(bloco_p)
     with col_analise:
@@ -501,14 +488,18 @@ def _etapa_analise(item, txt: dict) -> None:
             chave_unica=f"analise_{item.id}",
             vazio=txt["no_guesses"],
         )
-        if topico_ac is not None and alvo_hip is None:
-            st.button(
-                txt["acervo_open_btn_sup"],
-                key=f"abrir_acervo_1_{item.id}",
-                width="stretch",
-                on_click=_abrir_acervo,
-                args=(item, "chamado"),
-            )
+        if topico_ac is not None and not item.palpites:
+            ativo_avulso = 0 in clicados
+            rot_avulso = f"✓ {txt['acervo_open_btn_sup']}" if ativo_avulso else txt["acervo_open_btn_sup"]
+            cnt_avulso = f"btn_usar_ativo_ab1_{item.id}" if ativo_avulso else f"btn_usar_padrao_ab1_{item.id}"
+            with st.container(key=cnt_avulso):
+                st.button(
+                    rot_avulso,
+                    key=f"abrir_acervo_1_{item.id}",
+                    width="stretch",
+                    on_click=_abrir_acervo,
+                    args=(item, "chamado", 0),
+                )
 
     with st.container(key="cta_step_1"):
         st.button(txt["go_2"], type="primary", width="stretch", key=f"go2_{item.id}",
@@ -592,13 +583,22 @@ def _etapa_acervo(item, estado: dict, txt: dict) -> None:
             )
 
         # --- botão de simulação dos passos marcados (Etapa 4) ---
-        st.button(
-            txt.get("acervo_sim_btn_simular", "Simular melhor resposta com os passos marcados"),
-            key=f"simular_melhor_resposta_{item.id}",
-            width="stretch",
-            on_click=_simular_melhor_resposta,
-            args=(item, estado, txt),
+        marcacoes_atuais = dict(estado["passos_marcados"].get(topico.id, {}))
+        sim_ativo = (
+            estado.get("solucao_simulada") is not None
+            and estado.get("passos_simulados_ok") == marcacoes_atuais
         )
+        lbl_sim_base = txt.get("acervo_sim_btn_simular", "Simular melhor resposta com os passos marcados")
+        lbl_sim = f"✓ {lbl_sim_base}" if sim_ativo else lbl_sim_base
+        cnt_sim = f"btn_usar_ativo_sim_{item.id}" if sim_ativo else f"btn_usar_padrao_sim_{item.id}"
+        with st.container(key=cnt_sim):
+            st.button(
+                lbl_sim,
+                key=f"simular_melhor_resposta_{item.id}",
+                width="stretch",
+                on_click=_simular_melhor_resposta,
+                args=(item, estado, txt),
+            )
 
     with st.container(border=True):
         st.markdown(f"**{txt['acervo_sim_title']}**")
@@ -612,13 +612,13 @@ def _etapa_acervo(item, estado: dict, txt: dict) -> None:
         st.table(linhas_tempo)
 
         opcoes_idx = list(range(len(topico.tabela_tempo)))
-        idx_padrao = estado.get("cenario_tempo_idx", 0)
+        idx_padrao = st.session_state.get(f"sim_cenario_{item.id}", estado.get("cenario_tempo_idx", 0))
         if idx_padrao not in opcoes_idx:
             idx_padrao = 0
+        st.session_state[f"sim_cenario_{item.id}"] = idx_padrao
         escolhido_idx = st.pills(
             txt["acervo_sim_choose"],
             options=opcoes_idx,
-            default=idx_padrao,
             format_func=lambda idx: f"{cenarios[idx]} ({topico.tabela_tempo[idx].min}–{topico.tabela_tempo[idx].max} min)",
             key=f"sim_cenario_{item.id}",
         )
@@ -632,14 +632,22 @@ def _etapa_acervo(item, estado: dict, txt: dict) -> None:
         janela_lbl = txt["acervo_sim_result"].format(
             de=de_str, ate=ate_str, min=est.minutos_min, max=est.minutos_max
         )
-        # Botão clicável (Etapa 5): ao clicar, preenche o SEGUNDO [ ] (PEND_PRAZO) na sugestão OARS.
-        st.button(
-            f"{txt['acervo_sim_btn_prazo']} · {janela_lbl.replace('**', '')}",
-            key=f"prazo_sim_{item.id}",
-            width="stretch",
-            on_click=_usar_prazo_sim,
-            args=(item, estado, txt),
+        # Botão clicável (Etapa 5): ao clicar, acende e preenche o SEGUNDO [ ] (PEND_PRAZO) na sugestão OARS.
+        prazo_ativo = (
+            bool(estado.get(f"prazo_sim_{item.id}"))
+            and estado.get("prazo_sim_cenario") == escolhido_idx
         )
+        lbl_prazo_base = f"{txt['acervo_sim_btn_prazo']} · {janela_lbl.replace('**', '')}"
+        lbl_prazo = f"✓ {lbl_prazo_base}" if prazo_ativo else lbl_prazo_base
+        cnt_prazo = f"btn_usar_ativo_prazo_{item.id}" if prazo_ativo else f"btn_usar_padrao_prazo_{item.id}"
+        with st.container(key=cnt_prazo):
+            st.button(
+                lbl_prazo,
+                key=f"prazo_sim_{item.id}",
+                width="stretch",
+                on_click=_usar_prazo_sim,
+                args=(item, estado, txt),
+            )
         st.caption(txt["acervo_sim_caveat"])
 
     col_voltar, col_aplicar = st.columns(2, gap="medium")
@@ -681,6 +689,7 @@ def _usar_prazo_sim(item, estado: dict, txt: dict) -> None:
     else:
         janela = f"{de_str} até {ate_str} ({est.minutos_min} a {est.minutos_max} min)"
     estado[f"prazo_sim_{item.id}"] = janela
+    estado["prazo_sim_cenario"] = cenario
     _aplicar_acervo_na_sugestao(item, estado, topico, prazo_override=janela)
 
 
@@ -691,11 +700,12 @@ def _simular_melhor_resposta(item, estado: dict, txt: dict) -> None:
         return
     idioma = txt.get("lang_code", "PT")
     passos = acervo.texto_topico(topico, "passos", idioma)
-    marcacoes = estado.get("passos_marcados", {}).get(topico.id, {})
+    marcacoes = dict(estado.get("passos_marcados", {}).get(topico.id, {}))
     solucao_simulada = gerar_texto_com_passos_marcados(
         topico, passos, marcacoes, idioma=idioma, txt=txt
     )
     estado["solucao_simulada"] = solucao_simulada
+    estado["passos_simulados_ok"] = marcacoes
     _aplicar_acervo_na_sugestao(item, estado, topico, solucao_override=solucao_simulada)
 
 def _etapa_decisao(item, estado: dict, txt: dict, agente: str) -> None:
