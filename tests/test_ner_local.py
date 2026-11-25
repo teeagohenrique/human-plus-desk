@@ -24,3 +24,10 @@ def test_nao_marca_termos_de_servicedesk_como_pessoa():
 def test_modelo_indisponivel_devolve_lista_vazia():
     with patch("src.ner_local._analisador", side_effect=RuntimeError("modelo ausente")):
         assert nomes_encontrados("Beatriz Lima") == []
+
+
+def test_estado_ner_indica_indisponibilidade_do_modelo():
+    from src.ner_local import ner_disponivel
+
+    with patch("src.ner_local._analisador", side_effect=RuntimeError("modelo ausente")):
+        assert ner_disponivel() is False

@@ -4,6 +4,7 @@ Só texto já mascarado entra aqui. Cada linha é um evento; nada é apagado.
 """
 import json
 import logging
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -11,6 +12,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 logger = logging.getLogger(__name__)
+_TRAVA_JSONL = threading.Lock()
 
 Decisao = Literal["pendente", "aprovou", "editou", "rejeitou"]
 
@@ -49,6 +51,28 @@ def registrar(caminho: Path, chamado_id: str, agente: str, saida: dict,
     caminho.parent.mkdir(parents=True, exist_ok=True)
     with caminho.open("a", encoding="utf-8") as f:  # modo "a": só acrescenta
         f.write(json.dumps(evento, ensure_ascii=False) + "\n")
+
+
+def registrar_payload(caminho: Path, evento: dict) -> bool:
+    """Acrescenta um evento preparado pelo SQLite uma única vez, usando seu ID estável."""
+    evento_id = evento.get("evento_db_id")
+    if evento_id is None:
+        raise ValueError("evento_db_id é obrigatório para exportação idempotente")
+    caminho = Path(caminho)
+    with _TRAVA_JSONL:
+        if caminho.exists():
+            with caminho.open(encoding="utf-8", errors="replace") as arquivo:
+                for linha in arquivo:
+                    try:
+                        existente = json.loads(linha)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(existente, dict) and existente.get("evento_db_id") == evento_id:
+                        return False
+        caminho.parent.mkdir(parents=True, exist_ok=True)
+        with caminho.open("a", encoding="utf-8") as arquivo:
+            arquivo.write(json.dumps(evento, ensure_ascii=False) + "\n")
+    return True
 
 
 def ler(caminho: Path) -> list[dict]:

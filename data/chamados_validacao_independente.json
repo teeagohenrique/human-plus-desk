@@ -1,5 +1,5 @@
 {
-  "aviso": "Conjunto de validação independente (v2 — 36 chamados): escrito com formulações naturais de service desk corporativo sem olhar as regras nem ajustar o prompt em cima dele. Todos os dados pessoais são fictícios.",
+  "aviso": "Conjunto de validação ampliado para 50 chamados sintéticos. V01–V36 preservam a amostra original; V37–V50 formam lote complementar elaborado sem consulta ao código das regras nem ajuste de prompt. Todos os dados são fictícios. Os rótulos são hipóteses de validação e ainda precisam de revisão independente por especialistas antes de divulgação definitiva.",
   "chamados": [
     {"id": "V01", "texto": "Oi, o módulo fiscal congelou na hora de transmitir a guia e o vencimento do imposto é hoje às 16h. Já é a segunda vez nesta semana.", "gabarito": {"intencao": "falha_sistema", "urgencia": "alta"}},
     {"id": "V02", "texto": "Troquei de celular e o código do autenticador não chega mais, não entro no sistema corporativo desde cedo.", "gabarito": {"intencao": "acesso", "urgencia": "media"}},
@@ -37,6 +37,20 @@
     {"id": "V33", "texto": "Pela quarta semana seguida o relatório semanal chega vazio e o suporte só manda resposta pronta dizendo que está normal. Assim fica inviável manter o serviço.", "gabarito": {"intencao": "reclamacao", "urgencia": "alta"}},
     {"id": "V34", "texto": "Não consigo abrir a pasta de projetos da engenharia; aparece mensagem de acesso negado, mas não é urgente porque só vou usar na sexta.", "gabarito": {"intencao": "acesso", "urgencia": "baixa"}},
     {"id": "V35", "texto": "Boa tarde! Muito obrigado pela rapidez no ajuste de ontem, a equipe conseguiu entregar tudo no prazo.", "gabarito": {"intencao": "indefinida", "urgencia": "baixa"}},
-    {"id": "V36", "texto": "Precisamos habilitar a integração do ERP com o banco antes das 17h de hoje, senão o lote de pagamentos de fornecedores não será processado.", "gabarito": {"intencao": "solicitacao", "urgencia": "alta"}}
+    {"id": "V36", "texto": "Precisamos habilitar a integração do ERP com o banco antes das 17h de hoje, senão o lote de pagamentos de fornecedores não será processado.", "gabarito": {"intencao": "solicitacao", "urgencia": "alta"}},
+    {"id": "V37", "texto": "O sistema de pedidos caiu para todo o setor e ninguém consegue registrar vendas. Precisamos de retorno urgente, a operação está parada.", "gabarito": {"intencao": "falha_sistema", "urgencia": "alta"}},
+    {"id": "V38", "texto": "Não estou conseguindo entrar no portal; acho que esqueci a senha. Podem me orientar quando possível?", "gabarito": {"intencao": "acesso", "urgencia": "baixa"}},
+    {"id": "V39", "texto": "Já abri chamados duas vezes sobre os relatórios que somem e ninguém resolveu. Se isso continuar, vou levar o caso à gerência.", "gabarito": {"intencao": "reclamacao", "urgencia": "media"}},
+    {"id": "V40", "texto": "Podem instalar o leitor de PDF no computador da sala de treinamento? Vamos usar na próxima semana.", "gabarito": {"intencao": "solicitacao", "urgencia": "baixa"}},
+    {"id": "V41", "texto": "Na tela de consulta, como faço para baixar os resultados em planilha?", "gabarito": {"intencao": "duvida", "urgencia": "baixa"}},
+    {"id": "V42", "texto": "Recebi a atualização do chamado. Obrigado pelo retorno!", "gabarito": {"intencao": "indefinida", "urgencia": "baixa"}},
+    {"id": "V43", "texto": "O sistema de estoque fica lento quase toda tarde. Ainda dá para trabalhar, mas a conferência está demorando bem mais que o normal.", "gabarito": {"intencao": "falha_sistema", "urgencia": "media"}},
+    {"id": "V44", "texto": "O acesso ao sistema de folha foi bloqueado para a equipe toda e precisamos fechar a folha ainda hoje. Conseguem liberar imediatamente?", "gabarito": {"intencao": "acesso", "urgencia": "alta"}},
+    {"id": "V45", "texto": "Solicito a liberação de acesso ao painel de indicadores para a pessoa que vai assumir essa rotina a partir deste mês.", "gabarito": {"intencao": "solicitacao", "urgencia": "media"}},
+    {"id": "V46", "texto": "A nova tela ficou bem menos prática do que a anterior. Não tenho mais nada a acrescentar por enquanto.", "gabarito": {"intencao": "reclamacao", "urgencia": "baixa"}},
+    {"id": "V47", "texto": "Quando atualizo o cadastro, as alterações ficam salvas automaticamente ou preciso confirmar em algum lugar?", "gabarito": {"intencao": "duvida", "urgencia": "baixa"}},
+    {"id": "V48", "texto": "O computador que controla a impressora de etiquetas não liga e a linha de expedição está parada. Precisamos de suporte agora.", "gabarito": {"intencao": "falha_sistema", "urgencia": "alta"}},
+    {"id": "V49", "texto": "Vi que o chamado aparece como concluído no portal. Obrigada!", "gabarito": {"intencao": "indefinida", "urgencia": "baixa"}},
+    {"id": "V50", "texto": "Precisamos de uma impressora instalada na sala de reuniões. Não é urgente; pode ser incluída na próxima visita técnica.", "gabarito": {"intencao": "solicitacao", "urgencia": "baixa"}}
   ]
 }

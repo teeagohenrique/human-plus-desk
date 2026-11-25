@@ -79,14 +79,24 @@ def _analisador() -> AnalyzerEngine:
     return AnalyzerEngine(registry=registry, nlp_engine=nlp_engine, supported_languages=[IDIOMA])
 
 
-def nomes_encontrados(texto: str) -> list[tuple[int, int]]:
-    """Devolve pares `(início, fim)` dos nomes detectados, sem sobreposição."""
-    if not texto.strip():
-        return []
+def ner_disponivel() -> bool:
+    """Indica se a engine local foi carregada com sucesso, sem propagar falhas."""
     try:
-        resultados = _analisador().analyze(text=texto, language=IDIOMA, entities=[ENTIDADE])
-    except Exception:  # modelo ausente ou falha local: a heurística de mascara.py assume
-        return []
+        _analisador()
+    except Exception:
+        return False
+    return True
+
+
+def nomes_encontrados_com_estado(texto: str) -> tuple[list[tuple[int, int]], bool]:
+    """Devolve spans e saúde desta análise; falha significa que a camada não cobriu o texto."""
+    try:
+        engine = _analisador()
+        if not texto.strip():
+            return [], True
+        resultados = engine.analyze(text=texto, language=IDIOMA, entities=[ENTIDADE])
+    except Exception:
+        return [], False
     ordem = sorted(resultados, key=lambda r: (r.start, -r.end))
     spans: list[tuple[int, int]] = []
     for resultado in ordem:
@@ -97,4 +107,9 @@ def nomes_encontrados(texto: str) -> list[tuple[int, int]]:
         if spans and resultado.start < spans[-1][1]:
             continue
         spans.append((resultado.start, resultado.end))
-    return spans
+    return spans, True
+
+
+def nomes_encontrados(texto: str) -> list[tuple[int, int]]:
+    """Devolve pares `(início, fim)` dos nomes detectados, sem sobreposição."""
+    return nomes_encontrados_com_estado(texto)[0]

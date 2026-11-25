@@ -1,3 +1,5 @@
+import pytest
+
 from src import main, painel, pipeline
 
 TEXTO = (
@@ -16,6 +18,30 @@ def test_processar_chamado_devolve_artefatos_e_origens():
     assert r.origem_rascunho == "regras"
     assert r.provider_rascunho == "regras"
     assert r.leitura_inicial is None or isinstance(r.leitura_inicial, str)
+
+
+def test_pipeline_impede_chamada_externa_se_ner_falhar(monkeypatch):
+    from src import llm
+    from src.mascara import ResultadoMascara
+
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy-test-key")
+    monkeypatch.setenv("GEMINI_MODEL", "dummy-model")
+    monkeypatch.setattr(
+        pipeline, "mascarar", lambda texto: ResultadoMascara(
+            texto="Nome não mascarado", tipos_encontrados=[], ner_disponivel=False
+        ),
+    )
+    monkeypatch.setattr(
+        llm, "_triagem_gemini", lambda *args, **kwargs: pytest.fail("não deve enviar para Gemini")
+    )
+    monkeypatch.setattr(
+        llm, "_rascunho_gemini", lambda *args, **kwargs: pytest.fail("não deve enviar para Gemini")
+    )
+
+    resultado = pipeline.processar_chamado("texto original", provider="gemini")
+
+    assert resultado.origem_triagem == "fallback"
+    assert resultado.origem_rascunho == "fallback"
 
 
 def test_processar_chamado_repassa_historico_a_percepcao(monkeypatch):

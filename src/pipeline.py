@@ -44,7 +44,7 @@ def processar_chamado(
     """
     mascara = mascarar(texto)
     triagem, origem_triagem = llm.triagem_com_origem(
-        mascara.texto, provider=provider, model=model
+        mascara.texto, provider=provider, model=model, ner_disponivel=mascara.ner_disponivel
     )
     if ao_etapa is not None:
         ao_etapa("triagem")
@@ -53,7 +53,7 @@ def processar_chamado(
     leitura_inicial = palpites[0].leituras[0] if palpites else None
     rascunho, origem_rascunho = llm.rascunho_com_origem(
         mascara.texto, triagem, palpites=palpites, leitura=leitura_inicial,
-        provider=provider, model=model,
+        provider=provider, model=model, ner_disponivel=mascara.ner_disponivel,
     )
     if ao_etapa is not None:
         ao_etapa("rascunho")

@@ -116,6 +116,26 @@ def test_fila_base_le_arquivos_e_repassa_provider_e_modelo(monkeypatch, tmp_path
         ui_comum.fila_base.clear()
 
 
+def test_formatar_data_hora_passa_fuso_sao_paulo_explicitamente(monkeypatch):
+    from types import SimpleNamespace
+    from zoneinfo import ZoneInfo
+
+    class InstanteFalso:
+        tzinfo = object()
+
+        def astimezone(self, zona):
+            assert zona == ZoneInfo("America/Sao_Paulo")
+            return SimpleNamespace(strftime=lambda formato: "24/11/2026 às 12:00:00")
+
+    class DataHoraFalsa:
+        @staticmethod
+        def fromisoformat(_texto):
+            return InstanteFalso()
+
+    monkeypatch.setattr(ui_comum, "datetime", DataHoraFalsa)
+    assert ui_comum.formatar_data_hora("timestamp", lang="PT") == "24/11/2026 às 12:00:00"
+
+
 def test_formatar_data_hora_en_e_nome_sinal_en():
     assert ui_comum.formatar_data_hora("2026-11-23T10:30:45", lang="EN") == "2026-11-23 at 10:30:45"
     assert ui_comum.nome_sinal("historico:C01", I18N["EN"]) == "History (C01)"

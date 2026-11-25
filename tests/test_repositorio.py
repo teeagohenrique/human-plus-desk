@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from src import repositorio
@@ -10,11 +12,11 @@ def db(tmp_path):
     return caminho
 
 
-def test_init_cria_banco_e_popula_52_chamados(db):
+def test_init_cria_banco_e_popula_66_chamados(db):
     assert db.exists()
     tickets = repositorio.estado(caminho=db)
-    assert len(tickets) == 52
-    assert {f"V{i:02d}" for i in range(1, 37)} <= set(tickets)
+    assert len(tickets) == 66
+    assert {f"V{i:02d}" for i in range(1, 51)} <= set(tickets)
     assert {f"C{i:02d}" for i in range(1, 17)} <= set(tickets)
     assert {t["dataset"] for t in tickets.values()} == {
         repositorio.DATASET_FILA, repositorio.DATASET_BENCHMARK,
@@ -29,12 +31,28 @@ def test_seed_guarda_apenas_texto_mascarado(db):
 
 def test_seed_e_idempotente(db):
     repositorio.init_db(db)
-    assert len(repositorio.estado(caminho=db)) == 52
+    assert len(repositorio.estado(caminho=db)) == 66
 
 
 def test_seed_reconcilia_decisoes_anteriores(tmp_path):
     caminho = tmp_path / "recon.db"
     repositorio.init_db(caminho, concluidos={"C01"})
+    assert repositorio.estado(caminho=caminho)["C01"]["status"] == "concluido"
+
+
+def test_reconciliacao_ignora_linha_jsonl_corrompida(tmp_path, monkeypatch):
+    caminho = tmp_path / "recon.db"
+    repositorio.init_db(caminho)
+    with repositorio.conectar(caminho) as conn:
+        conn.execute("UPDATE tickets SET status = 'concluido', resposta_final = NULL WHERE id = 'C01'")
+
+    monkeypatch.setattr(repositorio, "RAIZ", tmp_path)
+    log = tmp_path / "data" / "painel_log.jsonl"
+    log.parent.mkdir()
+    log.write_text("{linha incompleta\n", encoding="utf-8")
+    with repositorio.conectar(caminho) as conn:
+        repositorio._reconciliar_respostas(conn, {"C01"})
+
     assert repositorio.estado(caminho=caminho)["C01"]["status"] == "concluido"
 
 
@@ -54,6 +72,33 @@ def test_urgencia_e_gravada_na_hora_com_agente_e_timestamp(db):
 def test_urgencia_invalida_e_rejeitada(db):
     with pytest.raises(ValueError):
         repositorio.registrar_urgencia("C01", "high", "Marina", caminho=db)
+
+
+def test_decisao_outbox_exporta_jsonl_idempotente(tmp_path):
+    caminho_db = tmp_path / "outbox.db"
+    caminho_log = tmp_path / "audit.jsonl"
+    repositorio.init_db(caminho_db)
+    payload = {
+        "agente": "analista",
+        "saida": {"urgencia": "media", "intencao": "acesso"},
+        "decisao_analista": "editou",
+        "texto_final": "Resposta simulada",
+    }
+
+    repositorio.registrar_decisao(
+        "C01", "editou", "Resposta simulada", "Marina",
+        payload_auditoria=payload, caminho=caminho_db,
+    )
+    repositorio.exportar_auditoria_pendente(caminho_log, caminho_db)
+    with repositorio.conectar(caminho_db) as conn:
+        conn.execute("UPDATE eventos SET jsonl_exportado = 0 WHERE id = 1")
+    repositorio.exportar_auditoria_pendente(caminho_log, caminho_db)
+
+    registros = [json.loads(linha) for linha in caminho_log.read_text(encoding="utf-8").splitlines()]
+    assert len(registros) == 1
+    assert registros[0]["evento_db_id"] == 1
+    assert registros[0]["decisao_analista"] == "editou"
+    assert repositorio.eventos(caminho_db, "C01")[-1]["jsonl_exportado"] == 1
 
 
 def test_decisao_grava_resposta_e_agente(db):

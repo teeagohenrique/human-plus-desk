@@ -72,6 +72,8 @@ MOTIVOS_FALLBACK = (
     "trecho_invalido",
     "guardrail",
     "marcadores_faltantes",
+    "configuracao_invalida",
+    "mascara_incompleta",
 )
 CONTADOR_FALLBACK = {motivo: 0 for motivo in MOTIVOS_FALLBACK}
 
@@ -320,7 +322,11 @@ def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativ
         _registrar_fallback("sdk_indisponivel")
         return triar(texto_mascarado), "fallback"
 
-    modelo = _modelo_gemini(model)
+    try:
+        modelo = _modelo_gemini(model)
+    except ValueError:
+        _registrar_fallback("configuracao_invalida")
+        return triar(texto_mascarado), "fallback"
     try:
         client = _cliente_gemini()
     except Exception:
@@ -387,7 +393,11 @@ def _rascunho_gemini(
         _registrar_fallback("sdk_indisponivel")
         return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura), "fallback"
 
-    modelo = _modelo_gemini(model)
+    try:
+        modelo = _modelo_gemini(model)
+    except ValueError:
+        _registrar_fallback("configuracao_invalida")
+        return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura), "fallback"
     try:
         client = _cliente_gemini()
     except Exception:
@@ -448,11 +458,17 @@ def _rascunho_gemini(
 
 
 def triagem_com_origem(
-    texto_mascarado: str, provider: str | None = None, model: str | None = None
+    texto_mascarado: str,
+    provider: str | None = None,
+    model: str | None = None,
+    ner_disponivel: bool = False,
 ) -> tuple[Triagem, str]:
-    """Devolve `(triagem, origem)`; origem é `gemini`, `regras` ou `fallback`."""
+    """Devolve `(triagem, origem)`; sem NER local, não envia texto ao provedor externo."""
     ativo = resolver_provider(provider)
-    if ativo == "gemini":
+    if ativo == "gemini" and not ner_disponivel:
+        _registrar_fallback("mascara_incompleta")
+        triagem, origem = triar(texto_mascarado), "fallback"
+    elif ativo == "gemini":
         triagem, origem = _triagem_gemini(texto_mascarado, model=model)
     else:
         triagem = triar(texto_mascarado)
@@ -464,9 +480,14 @@ def triagem_com_origem(
     return triagem, origem
 
 
-def triagem_com_llm(texto_mascarado: str, provider: str | None = None, model: str | None = None) -> Triagem:
+def triagem_com_llm(
+    texto_mascarado: str,
+    provider: str | None = None,
+    model: str | None = None,
+    ner_disponivel: bool = False,
+) -> Triagem:
     """Compatibilidade: devolve só a triagem, sem a origem."""
-    return triagem_com_origem(texto_mascarado, provider=provider, model=model)[0]
+    return triagem_com_origem(texto_mascarado, provider=provider, model=model, ner_disponivel=ner_disponivel)[0]
 
 
 def rascunho_com_origem(
@@ -476,9 +497,13 @@ def rascunho_com_origem(
     leitura: str | None = None,
     provider: str | None = None,
     model: str | None = None,
+    ner_disponivel: bool = False,
 ) -> tuple[Rascunho, str]:
-    """Devolve `(rascunho, origem)`; origem é `gemini`, `regras` ou `fallback`."""
+    """Devolve `(rascunho, origem)`; sem NER local, não envia texto ao provedor externo."""
     ativo = resolver_provider(provider)
+    if ativo == "gemini" and not ner_disponivel:
+        _registrar_fallback("mascara_incompleta")
+        return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura), "fallback"
     if ativo == "gemini":
         return _rascunho_gemini(
             texto_mascarado, triagem, palpites=palpites, leitura=leitura, model=model
@@ -493,9 +518,15 @@ def rascunho_com_llm(
     leitura: str | None = None,
     provider: str | None = None,
     model: str | None = None,
+    ner_disponivel: bool = False,
 ) -> Rascunho:
     """Compatibilidade: devolve só o rascunho, sem a origem."""
     return rascunho_com_origem(
-        texto_mascarado, triagem, palpites=palpites, leitura=leitura,
-        provider=provider, model=model,
+        texto_mascarado,
+        triagem,
+        palpites=palpites,
+        leitura=leitura,
+        provider=provider,
+        model=model,
+        ner_disponivel=ner_disponivel,
     )[0]

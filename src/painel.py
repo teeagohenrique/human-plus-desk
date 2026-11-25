@@ -38,6 +38,7 @@ class ItemFila(BaseModel):
     origem_rascunho: str = "regras"
     leitura_inicial: str | None = None
     provider_rascunho: str = "regras"
+    ner_disponivel: bool = False
 
 
 def carregar_historico(caminho: Path) -> dict[str, list[Historico]]:
@@ -75,6 +76,7 @@ def montar_fila(
             origem_triagem=r.origem_triagem, origem_rascunho=r.origem_rascunho,
             leitura_inicial=r.leitura_inicial,
             provider_rascunho=r.provider_rascunho,
+            ner_disponivel=r.mascara.ner_disponivel,
         ))
     # Mais urgentes primeiro; dentro da urgência, maior pontuação primeiro.
     itens.sort(key=lambda i: (ORDEM_URGENCIA[i.triagem.urgencia], -i.triagem.pontuacao_urgencia, i.id))
@@ -103,7 +105,7 @@ def rascunho_adaptado(
     else:
         resultado = llm.rascunho_com_origem(
             item.texto_mascarado, item.triagem, palpites=item.palpites, leitura=leitura,
-            provider=provider, model=model,
+            provider=provider, model=model, ner_disponivel=item.ner_disponivel,
         )
     if cache is not None:
         cache[chave] = resultado
@@ -215,24 +217,57 @@ def detalhes_supervisao(item: ItemFila, leitura: str | None, leitura_livre: str 
     }
 
 
-def registrar_decisao(log: Path, item: ItemFila, decisao: str, texto_final: str | None,
-                      leitura: str | None = None, leitura_livre: str | None = None,
-                      urgencia_analista: str | None = None, urgencia_automatica: bool = False,
-                      origem_triagem: str | None = None, origem_rascunho: str | None = None) -> None:
+def payload_decisao(
+    item: ItemFila,
+    decisao: str,
+    texto_final: str | None,
+    leitura: str | None = None,
+    leitura_livre: str | None = None,
+    urgencia_analista: str | None = None,
+    urgencia_automatica: bool = False,
+    origem_triagem: str | None = None,
+    origem_rascunho: str | None = None,
+) -> dict:
+    """Cria payload estável para o outbox de auditoria da decisão humana."""
     if decisao not in DECISOES:
         raise ValueError(f"decisão inválida: {decisao}")
     if urgencia_analista is not None and urgencia_analista not in ORDEM_URGENCIA:
         raise ValueError(f"urgência inválida: {urgencia_analista}")
+    return {
+        "agente": "analista",
+        "saida": {
+            "urgencia": item.triagem.urgencia,
+            "intencao": item.triagem.intencao,
+            "recorrente": item.triagem.recorrente,
+            "leitura": leitura,
+            "leitura_livre": leitura_livre or None,
+            "sem_palpites": not item.palpites,
+            "confianca_triagem": item.triagem.confianca,
+            "urgencia_analista": urgencia_analista,
+            "urgencia_automatica": urgencia_automatica,
+            "origem_triagem": origem_triagem or item.origem_triagem,
+            "origem_rascunho": origem_rascunho or item.origem_rascunho,
+        },
+        "decisao_analista": decisao,
+        "texto_final": texto_final,
+    }
+
+
+def registrar_decisao(log: Path, item: ItemFila, decisao: str, texto_final: str | None,
+                      leitura: str | None = None, leitura_livre: str | None = None,
+                      urgencia_analista: str | None = None, urgencia_automatica: bool = False,
+                      origem_triagem: str | None = None, origem_rascunho: str | None = None) -> None:
+    payload = payload_decisao(
+        item, decisao, texto_final, leitura, leitura_livre, urgencia_analista,
+        urgencia_automatica, origem_triagem, origem_rascunho,
+    )
     auditoria.registrar(
-        log, item.id, "analista",
-        {"urgencia": item.triagem.urgencia, "intencao": item.triagem.intencao,
-         "recorrente": item.triagem.recorrente, "leitura": leitura,
-         "leitura_livre": (leitura_livre or None), "sem_palpites": not item.palpites,
-         "confianca_triagem": item.triagem.confianca, "urgencia_analista": urgencia_analista,
-         "urgencia_automatica": urgencia_automatica,
-         "origem_triagem": origem_triagem or item.origem_triagem,
-         "origem_rascunho": origem_rascunho or item.origem_rascunho},
-        decisao=decisao, texto_final=texto_final,
+        log,
+        item.id,
+        payload["agente"],
+        payload["saida"],
+        decisao=payload["decisao_analista"],
+        texto_final=payload["texto_final"],
     )
 
 

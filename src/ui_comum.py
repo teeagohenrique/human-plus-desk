@@ -7,7 +7,9 @@ import inspect
 import json
 import re
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import altair as alt
 import streamlit as st
@@ -20,6 +22,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 LOG = RAIZ / "data" / "painel_log.jsonl"
 LOG_SIM = RAIZ / "data" / "painel_simulado.jsonl"
 CONFIG = RAIZ / "data" / "calibracao_config.json"
+FUSO_LOCAL = ZoneInfo("America/Sao_Paulo")
 
 COR = {"alta": "🔴", "media": "🟠", "baixa": "🟢"}
 DESTAQUE_ROXO = "#7C3AED"
@@ -85,13 +88,13 @@ fila_base.clear = _limpar_cache_filas
 
 
 def formatar_data_hora(iso_str: str | None, lang: str = "PT") -> str:
-    """Converte timestamp ISO (UTC) para data e hora local (PT ou EN)."""
+    """Converte timestamp ISO para horário de São Paulo (PT ou EN)."""
     if not iso_str:
         return "—"
     try:
         dt = datetime.fromisoformat(iso_str)
         if dt.tzinfo is not None:
-            dt = dt.astimezone()
+            dt = dt.astimezone(FUSO_LOCAL)
         fmt = "%Y-%m-%d at %H:%M:%S" if lang == "EN" else "%d/%m/%Y às %H:%M:%S"
         return dt.strftime(fmt)
     except ValueError:
@@ -127,10 +130,14 @@ def linha_acervo(topico_id: str | None, palavras: list[str] | None, txt: dict) -
     topico = acervo.obter_topico(topico_id) if topico_id else None
     if topico is None:
         return ""
-    partes = [f"{txt['acervo_label']}: {topico.material_titulo} › {topico.titulo}"]
+    idioma = txt.get("lang_code", "PT")
+    titulo_material = acervo.texto_material(topico.material_id, "titulo", idioma)
+    titulo_topico = acervo.texto_topico(topico, "titulo", idioma)
+    solucao = acervo.texto_topico(topico, "solucao_provisoria", idioma)
+    partes = [f"{txt['acervo_label']}: {titulo_material} › {titulo_topico}"]
     if palavras:
         partes.append(f"{txt['acervo_words']}: {', '.join(palavras)}")
-    partes.append(f"{txt['acervo_solution']}: {topico.solucao_provisoria}")
+    partes.append(f"{txt['acervo_solution']}: {solucao}")
     return " | ".join(partes)
 
 
@@ -148,24 +155,12 @@ def topico_do_item(item) -> tuple[acervo.Topico | None, list[str]]:
     return None, []
 
 
-_NOMES_CADASTRO_SIMULADO = {
-    "C01": "Carlos",
-    "C02": "Ana Souza",
-    "C03": "Roberto Almeida",
-    "C04": "Fernanda Lima",
-    "C05": "Lucas Mendes",
-    "C06": "Marcos Vieira",
-    "C07": "Júlia",
-    "C08": "Eduardo Santos",
-    "C09": "Patrícia Gomes",
-    "C10": "Helena Ribeiro",
-    "C11": "Ricardo Oliveira",
-    "C12": "Bruno Carvalho",
-    "C13": "Paula",
-    "C14": "Camila Rocha",
-    "C15": "Gustavo Martins",
-    "C16": "Daniela Costa",
-}
+@lru_cache(maxsize=1)
+def _cadastro_simulado_supervisao() -> dict[str, str]:
+    caminho = RAIZ / "data" / "supervisao_simulada.json"
+    dados = json.loads(caminho.read_text(encoding="utf-8"))
+    return {str(chave): str(nome) for chave, nome in dados.get("clientes", {}).items()}
+
 
 
 def resolver_arroba_rafael(chamado_id: str, texto: str | None) -> str:
@@ -175,7 +170,7 @@ def resolver_arroba_rafael(chamado_id: str, texto: str | None) -> str:
     """
     if not texto:
         return ""
-    nome = _NOMES_CADASTRO_SIMULADO.get(chamado_id, f"Cliente {chamado_id}")
+    nome = _cadastro_simulado_supervisao().get(chamado_id, f"Cliente {chamado_id}")
     return re.sub(r"(?<!\w)@(?!\w)", nome, texto)
 
 

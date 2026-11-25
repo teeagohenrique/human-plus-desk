@@ -14,6 +14,7 @@ Regras preservadas do pipeline auditado:
 O arquivo `human_desk.db` é criado na raiz do projeto na primeira execução.
 """
 import json
+import logging
 import sqlite3
 from contextlib import closing
 from datetime import UTC, datetime
@@ -24,6 +25,7 @@ from src.triagem import triar
 
 RAIZ = Path(__file__).resolve().parent.parent
 DB_PATH = RAIZ / "human_desk.db"
+logger = logging.getLogger(__name__)
 
 DATASET_FILA = "simulados"
 DATASET_BENCHMARK = "validacao_independente"
@@ -83,12 +85,25 @@ def init_db(caminho: Path = DB_PATH, concluidos: set[str] | None = None) -> None
                 acao       TEXT NOT NULL,
                 agente     TEXT NOT NULL,
                 criado_em  TEXT NOT NULL,
-                detalhes   TEXT
+                detalhes   TEXT,
+                jsonl_exportado INTEGER NOT NULL DEFAULT 1,
+                payload_auditoria TEXT
             );
 
             CREATE INDEX IF NOT EXISTS idx_eventos_chamado ON eventos(chamado_id);
             CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status, dataset);
             """
+        )
+        colunas_eventos = {linha[1] for linha in conn.execute("PRAGMA table_info(eventos)")}
+        if "jsonl_exportado" not in colunas_eventos:
+            conn.execute(
+                "ALTER TABLE eventos ADD COLUMN jsonl_exportado INTEGER NOT NULL DEFAULT 1"
+            )
+        if "payload_auditoria" not in colunas_eventos:
+            conn.execute("ALTER TABLE eventos ADD COLUMN payload_auditoria TEXT")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_eventos_jsonl_pendente "
+            "ON eventos(jsonl_exportado, acao)"
         )
         total = conn.execute("SELECT COUNT(*) FROM tickets").fetchone()[0]
         if total == 0:
@@ -109,10 +124,23 @@ def _reconciliar_respostas(conn: sqlite3.Connection, concluidos: set[str]) -> No
     log_path = RAIZ / "data" / "painel_log.jsonl"
     por_id: dict[str, dict] = {}
     if log_path.exists():
-        for linha in log_path.read_text(encoding="utf-8").splitlines():
+        for numero, linha in enumerate(log_path.read_text(encoding="utf-8").splitlines(), start=1):
             if not linha.strip():
                 continue
-            reg = json.loads(linha)
+            try:
+                reg = json.loads(linha)
+            except json.JSONDecodeError:
+                logger.warning(
+                    "reconciliacao: linha %d de %s ignorada (JSON inválido)",
+                    numero, log_path.name,
+                )
+                continue
+            if not isinstance(reg, dict):
+                logger.warning(
+                    "reconciliacao: linha %d de %s ignorada (registro não é objeto)",
+                    numero, log_path.name,
+                )
+                continue
             cid = reg.get("chamado_id")
             texto = (reg.get("texto_final") or "").strip()
             if cid in concluidos and texto:
@@ -134,7 +162,7 @@ def _reconciliar_respostas(conn: sqlite3.Connection, concluidos: set[str]) -> No
 
 
 def _semear(conn: sqlite3.Connection, concluidos: set[str]) -> None:
-    """Insere os 16 chamados da fila e os 36 do benchmark, já mascarados."""
+    """Insere os 16 chamados da fila e os 50 do benchmark, já mascarados."""
     agora = _agora()
     for arquivo, dataset in DATASETS:
         dados = json.loads((RAIZ / "data" / arquivo).read_text(encoding="utf-8"))
@@ -154,13 +182,29 @@ def _semear(conn: sqlite3.Connection, concluidos: set[str]) -> None:
             )
 
 
-def _inserir_evento(conn: sqlite3.Connection, chamado_id: str, acao: str,
-                    agente: str, detalhes: dict | None = None) -> None:
-    conn.execute(
-        "INSERT INTO eventos (chamado_id, acao, agente, criado_em, detalhes) VALUES (?, ?, ?, ?, ?)",
-        (chamado_id, acao, agente, _agora(),
-         json.dumps(detalhes or {}, ensure_ascii=False)),
+def _inserir_evento(
+    conn: sqlite3.Connection,
+    chamado_id: str,
+    acao: str,
+    agente: str,
+    detalhes: dict | None = None,
+    payload_auditoria: dict | None = None,
+) -> int:
+    cursor = conn.execute(
+        """INSERT INTO eventos
+           (chamado_id, acao, agente, criado_em, detalhes, jsonl_exportado, payload_auditoria)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (
+            chamado_id,
+            acao,
+            agente,
+            _agora(),
+            json.dumps(detalhes or {}, ensure_ascii=False),
+            0 if payload_auditoria is not None else 1,
+            json.dumps(payload_auditoria, ensure_ascii=False) if payload_auditoria else None,
+        ),
     )
+    return int(cursor.lastrowid or 0)
 
 
 def registrar_urgencia(chamado_id: str, urgencia: str, agente: str,
@@ -189,7 +233,8 @@ def registrar_urgencia(chamado_id: str, urgencia: str, agente: str,
 
 def registrar_decisao(chamado_id: str, decisao: str, texto_final: str | None,
                       agente: str, detalhes: dict | None = None,
-                      caminho: Path = DB_PATH) -> None:
+                      caminho: Path = DB_PATH,
+                      payload_auditoria: dict | None = None) -> None:
     """Fecha o chamado e registra no evento o estado que ele substituiu.
 
     O ticket passa a refletir a nova decisão; os valores anteriores ficam no
@@ -226,7 +271,7 @@ def registrar_decisao(chamado_id: str, decisao: str, texto_final: str | None,
             "resolvido_por_anterior": anterior["resolvido_por"],
             "resolvido_em_anterior": anterior["resolvido_em"],
             "tem_resposta_anterior": bool(anterior["resposta_final"]),
-        })
+        }, payload_auditoria=payload_auditoria)
 
 
 def reabrir(chamado_id: str, agente: str, caminho: Path = DB_PATH) -> None:
@@ -243,6 +288,48 @@ def reabrir(chamado_id: str, agente: str, caminho: Path = DB_PATH) -> None:
         _inserir_evento(conn, chamado_id, "reabriu", agente, {
             "status_anterior": atual["status"],
         })
+
+
+def exportar_auditoria_pendente(
+    caminho_log: Path = RAIZ / "data" / "painel_log.jsonl",
+    caminho_db: Path = DB_PATH,
+) -> int:
+    """Publica no JSONL as decisões confirmadas no SQLite, sem duplicar após retry."""
+    from src.auditoria import registrar_payload
+
+    with closing(conectar(caminho_db)) as conn:
+        pendentes = conn.execute(
+            "SELECT id, chamado_id, criado_em, payload_auditoria FROM eventos "
+            "WHERE acao = 'decisao' AND jsonl_exportado = 0 ORDER BY id"
+        ).fetchall()
+
+    exportados = 0
+    for evento in pendentes:
+        try:
+            payload = json.loads(evento["payload_auditoria"] or "{}")
+            if not isinstance(payload, dict):
+                raise ValueError("payload de auditoria deve ser um objeto")
+            registro = {
+                "quando": evento["criado_em"],
+                "chamado_id": evento["chamado_id"],
+                "evento_db_id": evento["id"],
+                **payload,
+            }
+            registrar_payload(caminho_log, registro)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            logger.error(
+                "auditoria: exportação do evento %s falhou (%s)",
+                evento["id"], type(exc).__name__,
+            )
+            continue
+
+        with closing(conectar(caminho_db)) as conn, conn:
+            conn.execute(
+                "UPDATE eventos SET jsonl_exportado = 1 WHERE id = ?",
+                (evento["id"],),
+            )
+        exportados += 1
+    return exportados
 
 
 def estado(dataset: str | None = None, caminho: Path = DB_PATH) -> dict[str, dict]:

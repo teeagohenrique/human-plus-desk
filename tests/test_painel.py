@@ -190,11 +190,11 @@ def test_montar_fila_propagada_origem_gemini_e_modelo(monkeypatch):
 
     vistos = []
 
-    def triagem_falsa(texto, provider=None, model=None):
+    def triagem_falsa(texto, provider=None, model=None, ner_disponivel=True):
         vistos.append(("triagem", provider, model))
         return triar(texto), "gemini"
 
-    def rascunho_falso(texto, triagem, palpites=None, leitura=None, provider=None, model=None):
+    def rascunho_falso(texto, triagem, palpites=None, leitura=None, provider=None, model=None, ner_disponivel=True):
         vistos.append(("rascunho", provider, model))
         return gerar_rascunho(texto, triagem, palpites=palpites, leitura=leitura), "gemini"
 
@@ -214,7 +214,7 @@ def test_rascunho_adaptado_usa_cache_por_leitura_e_provider(monkeypatch):
     item = fila()[0]
     chamadas = []
 
-    def rascunho_falso(texto, triagem, palpites=None, leitura=None, provider=None, model=None):
+    def rascunho_falso(texto, triagem, palpites=None, leitura=None, provider=None, model=None, ner_disponivel=False):
         chamadas.append((leitura, provider, model))
         return gerar_rascunho(texto, triagem, palpites=palpites, leitura=leitura), "gemini"
 
@@ -237,7 +237,7 @@ def test_rascunho_adaptado_reaproveita_leitura_inicial_sem_nova_chamada(monkeypa
     item = next(i for i in fila() if i.leitura_inicial)
     chamadas = []
 
-    def rascunho_falso(texto, triagem, palpites=None, leitura=None, provider=None, model=None):
+    def rascunho_falso(texto, triagem, palpites=None, leitura=None, provider=None, model=None, ner_disponivel=False):
         chamadas.append(leitura)
         return gerar_rascunho(texto, triagem, palpites=palpites, leitura=leitura), "gemini"
 

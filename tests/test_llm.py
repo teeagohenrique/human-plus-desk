@@ -44,6 +44,37 @@ def test_resolver_provider_rejeita_provedor_desconhecido():
         resolver_provider("desconhecido")
 
 
+def test_gemini_sem_modelo_usa_fallback_e_contabiliza_motivo(monkeypatch):
+    from src.llm import usar_contadores
+
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy-test-key")
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+    with usar_contadores() as contadores:
+        triagem, origem = triagem_com_origem(CHAMADO, provider="gemini", ner_disponivel=True)
+        assert origem == "fallback"
+        assert triagem == triar(CHAMADO)
+        rascunho, origem_rascunho = rascunho_com_origem(
+            CHAMADO, triagem, provider="gemini", ner_disponivel=True
+        )
+        assert origem_rascunho == "fallback"
+        assert rascunho.passou_guardrail
+        assert contadores.fallback["configuracao_invalida"] == 2
+
+
+def test_gemini_bloqueia_envio_quando_ner_local_nao_esta_disponivel(monkeypatch):
+    from src.llm import usar_contadores
+
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy-test-key")
+    monkeypatch.setenv("GEMINI_MODEL", "dummy-model")
+    with usar_contadores() as contadores:
+        triagem, origem = triagem_com_origem(
+            CHAMADO, provider="gemini", ner_disponivel=False
+        )
+        assert origem == "fallback"
+        assert triagem == triar(CHAMADO)
+        assert contadores.fallback["mascara_incompleta"] == 1
+
+
 def test_validar_trechos_aceita_evidencia_literal_com_espacos_normalizados():
     texto = "O sistema   de faturamento\ntravou pela terceira vez."
     ok, invalidos = validar_trechos(["sistema de faturamento travou", "terceira vez"], texto)
@@ -276,14 +307,14 @@ def test_contador_registra_triagem_gemini(monkeypatch):
     from src import llm
 
     _preparar_gemini_falso(monkeypatch, _resposta_valida())
-    triagem_com_llm(CHAMADO, provider="gemini")
+    triagem_com_llm(CHAMADO, provider="gemini", ner_disponivel=True)
     assert obter_contador_triagem() == {"gemini": 1, "regras": 0, "fallback": 0}
     assert llm.CONTADOR_TRIAGEM is not obter_contador_triagem()
 
 
 def test_contador_registra_fallback_por_trecho_invalido(monkeypatch):
     _preparar_gemini_falso(monkeypatch, _resposta_invalida())
-    triagem_com_llm(CHAMADO, provider="gemini")
+    triagem_com_llm(CHAMADO, provider="gemini", ner_disponivel=True)
     assert obter_contador_triagem() == {"gemini": 0, "regras": 0, "fallback": 1}
 
 
@@ -326,7 +357,7 @@ def test_validar_trechos_rejeita_fragmento_de_palavra_e_aceita_palavra_inteira()
 
 def test_triagem_com_origem_devolve_gemini_e_regras(monkeypatch):
     _preparar_gemini_falso(monkeypatch, _resposta_valida())
-    t, origem = triagem_com_origem(CHAMADO, provider="gemini")
+    t, origem = triagem_com_origem(CHAMADO, provider="gemini", ner_disponivel=True)
     assert origem == "gemini" and isinstance(t, Triagem)
 
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -351,7 +382,7 @@ def test_rascunho_gemini_exige_os_dois_marcadores_no_retry(monkeypatch):
         return next(respostas)
 
     monkeypatch.setattr(llm, "_chamar_api_gemini", chamar_falso)
-    r, origem = rascunho_com_origem(CHAMADO, triar(CHAMADO), provider="gemini")
+    r, origem = rascunho_com_origem(CHAMADO, triar(CHAMADO), provider="gemini", ner_disponivel=True)
     assert origem == "gemini"
     assert r.passou_guardrail
     assert PEND_PRAZO in r.pendencias and PEND_PROVISORIA in r.pendencias
@@ -384,7 +415,7 @@ def test_triagem_gemini_com_excecao_de_api_cai_em_fallback(monkeypatch):
         raise RuntimeError("429 RESOURCE_EXHAUSTED")
 
     monkeypatch.setattr(llm, "_chamar_api_gemini", falhar)
-    t, origem = triagem_com_origem(CHAMADO, provider="gemini")
+    t, origem = triagem_com_origem(CHAMADO, provider="gemini", ner_disponivel=True)
     assert origem == "fallback" and isinstance(t, Triagem)
 
 
@@ -405,7 +436,7 @@ def test_rascunho_gemini_com_excecao_de_api_cai_em_fallback(monkeypatch):
 def test_fallback_por_trecho_invalido_e_registrado_com_motivo(monkeypatch):
     _preparar_gemini_falso(monkeypatch, _resposta_invalida())
     zerar_contadores()
-    triagem_com_origem(CHAMADO, provider="gemini")
+    triagem_com_origem(CHAMADO, provider="gemini", ner_disponivel=True)
     motivos = obter_contador_fallback()
     assert motivos["trecho_invalido"] == 1
     assert sum(motivos.values()) == 1
@@ -414,7 +445,7 @@ def test_fallback_por_trecho_invalido_e_registrado_com_motivo(monkeypatch):
 def test_fallback_por_schema_invalido_e_registrado_com_motivo(monkeypatch):
     _preparar_gemini_falso(monkeypatch, SimpleNamespace(parsed={"nao": "e uma Triagem"}))
     zerar_contadores()
-    triagem_com_origem(CHAMADO, provider="gemini")
+    triagem_com_origem(CHAMADO, provider="gemini", ner_disponivel=True)
     assert obter_contador_fallback()["schema_invalido"] == 1
 
 
@@ -430,7 +461,7 @@ def test_fallback_por_erro_api_e_classificado_por_status(monkeypatch, status, mo
 
     monkeypatch.setattr(llm, "_chamar_api_gemini", falhar)
     zerar_contadores()
-    triagem_com_origem(CHAMADO, provider="gemini")
+    triagem_com_origem(CHAMADO, provider="gemini", ner_disponivel=True)
     motivos = obter_contador_fallback()
     assert motivos[motivo] == 1
     assert sum(motivos.values()) == 1
@@ -448,14 +479,14 @@ def test_fallback_por_guardrail_e_marcadores_sao_distintos(monkeypatch):
         llm, "_chamar_api_gemini",
         lambda *_a, **_k: SimpleNamespace(text="Você está nervoso; resolvo até amanhã às 10h."),
     )
-    rascunho_com_origem(CHAMADO, triar(CHAMADO), provider="gemini")
+    rascunho_com_origem(CHAMADO, triar(CHAMADO), provider="gemini", ner_disponivel=True)
     assert obter_contador_fallback()["guardrail"] == 1
 
     monkeypatch.setattr(
         llm, "_chamar_api_gemini",
         lambda *_a, **_k: SimpleNamespace(text=f"Olá, entendi o problema. {PEND_PRAZO}"),
     )
-    rascunho_com_origem(CHAMADO, triar(CHAMADO), provider="gemini")
+    rascunho_com_origem(CHAMADO, triar(CHAMADO), provider="gemini", ner_disponivel=True)
     motivos = obter_contador_fallback()
     assert motivos["guardrail"] == 1
     assert motivos["marcadores_faltantes"] == 1
@@ -463,7 +494,7 @@ def test_fallback_por_guardrail_e_marcadores_sao_distintos(monkeypatch):
 
 def test_zerar_contadores_limpa_origem_e_motivos(monkeypatch):
     _preparar_gemini_falso(monkeypatch, _resposta_invalida())
-    triagem_com_origem(CHAMADO, provider="gemini")
+    triagem_com_origem(CHAMADO, provider="gemini", ner_disponivel=True)
     assert any(obter_contador_fallback().values())
 
     zerar_contadores()
@@ -478,12 +509,12 @@ def test_avaliar_expoe_motivos_dos_fallbacks(monkeypatch):
     original = main.triagem_com_llm
     vistos = []
 
-    def triagem_com_um_fallback(texto, provider=None):
+    def triagem_com_um_fallback(texto, provider=None, ner_disponivel=False):
         vistos.append(1)
         if len(vistos) == 1:
             llm._registrar_fallback("erro_api_503")
             llm._registrar_triagem("fallback")
-        return original(texto, provider=provider)
+        return original(texto, provider=provider, ner_disponivel=ner_disponivel)
 
     monkeypatch.setattr(main, "triagem_com_llm", triagem_com_um_fallback)
     res = main.avaliar(main.DADOS)
@@ -599,7 +630,7 @@ def test_cliente_gemini_indisponivel_continua_registrando_fallback(monkeypatch):
     monkeypatch.setenv("GEMINI_MODEL", "modelo_teste")
 
     with llm.usar_contadores() as contadores:
-        triagem, origem = llm.triagem_com_origem(CHAMADO, provider="gemini")
+        triagem, origem = llm.triagem_com_origem(CHAMADO, provider="gemini", ner_disponivel=True)
 
     assert origem == "fallback"
     assert isinstance(triagem, Triagem)

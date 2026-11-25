@@ -50,6 +50,7 @@ _NAO_NOMES = {
 class ResultadoMascara(BaseModel):
     texto: str
     tipos_encontrados: list[str]
+    ner_disponivel: bool = False
 
 
 def _mascarar_nomes(texto: str) -> tuple[str, int]:
@@ -69,13 +70,13 @@ def _mascarar_nomes(texto: str) -> tuple[str, int]:
     return texto, total
 
 
-def _nomes_por_ner(texto: str) -> list[tuple[int, int]]:
-    """Importa o NER sob demanda; indisponibilidade não derruba a máscara."""
+def _nomes_por_ner(texto: str) -> tuple[list[tuple[int, int]], bool]:
+    """Importa o NER sob demanda e devolve se a análise realmente completou."""
     try:
-        from src.ner_local import nomes_encontrados
+        from src.ner_local import nomes_encontrados_com_estado
     except Exception:
-        return []
-    return nomes_encontrados(texto)
+        return [], False
+    return nomes_encontrados_com_estado(texto)
 
 
 def mascarar(texto: str) -> ResultadoMascara:
@@ -85,10 +86,11 @@ def mascarar(texto: str) -> ResultadoMascara:
         encontrados.extend([tipo] * n)
     texto, n_nomes = _mascarar_nomes(texto)
     encontrados.extend(["NOME"] * n_nomes)
-    for inicio, fim in reversed(_nomes_por_ner(texto)):
+    spans, ner_ok = _nomes_por_ner(texto)
+    for inicio, fim in reversed(spans):
         trecho = texto[inicio:fim]
         if not trecho or all(palavra in _NAO_NOMES for palavra in trecho.split()):
             continue
         texto = texto[:inicio] + "[NOME]" + texto[fim:]
         encontrados.append("NOME")
-    return ResultadoMascara(texto=texto, tipos_encontrados=encontrados)
+    return ResultadoMascara(texto=texto, tipos_encontrados=encontrados, ner_disponivel=ner_ok)

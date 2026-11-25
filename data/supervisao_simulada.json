@@ -1,0 +1,21 @@
+{
+  "aviso": "Cadastro fictício usado exclusivamente na visão de supervisão do Rafael. Identidades e chamados são simulados.",
+  "clientes": {
+    "C01": "Carlos",
+    "C02": "Ana Souza",
+    "C03": "Roberto Almeida",
+    "C04": "Fernanda Lima",
+    "C05": "Lucas Mendes",
+    "C06": "Marcos Vieira",
+    "C07": "Júlia",
+    "C08": "Eduardo Santos",
+    "C09": "Patrícia Gomes",
+    "C10": "Helena Ribeiro",
+    "C11": "Ricardo Oliveira",
+    "C12": "Bruno Carvalho",
+    "C13": "Paula",
+    "C14": "Camila Rocha",
+    "C15": "Gustavo Martins",
+    "C16": "Daniela Costa"
+  }
+}

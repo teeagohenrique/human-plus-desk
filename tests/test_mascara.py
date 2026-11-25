@@ -61,6 +61,19 @@ def test_nao_mascara_siglas_sistemas_ou_dias_como_nome():
     assert "Excel" in r.texto and "VPN" in r.texto and "RH" in r.texto and "reunião das 14h" in r.texto
 
 
+def test_ner_indisponivel_na_execucao_e_reportado_na_mascara():
+    from unittest.mock import patch
+
+    class _FalhaAnalise:
+        def analyze(self, **kwargs):
+            raise RuntimeError("falha simulada")
+
+    with patch("src.ner_local._analisador", return_value=_FalhaAnalise()):
+        resultado = mascarar("Texto de chamado com Beatriz Lima")
+
+    assert resultado.ner_disponivel is False
+
+
 def test_mascara_nome_fora_dos_prefixos_com_ner_local():
     texto = "O relatório foi revisado por Beatriz Lima antes do envio."
     r = mascarar(texto)
