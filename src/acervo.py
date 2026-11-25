@@ -9,14 +9,17 @@ Todo o conteúdo é inventado para a simulação.
 import json
 import re
 import unicodedata
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
 
 RAIZ = Path(__file__).resolve().parent.parent
 CAMINHO_ACERVO = RAIZ / "data" / "acervo_simulado.json"
+CAMINHO_ACERVO_EN = RAIZ / "data" / "acervo_simulado_en.json"
 
 
 class FaixaTempo(BaseModel):
@@ -69,6 +72,48 @@ def todos_topicos(caminho: Path = CAMINHO_ACERVO) -> list[Topico]:
     return [t for m in carregar(caminho) for t in m.topicos]
 
 
+@lru_cache(maxsize=2)
+def _carregar_traducoes_en(caminho: Path = CAMINHO_ACERVO_EN) -> dict:
+    return json.loads(Path(caminho).read_text(encoding="utf-8"))
+
+
+def texto_material(material_id: str, campo: str, idioma: str = "PT") -> str:
+    """Texto localizado de um material; ausências caem de forma explícita para PT."""
+    material = next((m for m in carregar() if m.id == material_id), None)
+    if material is None:
+        return ""
+    base = getattr(material, campo)
+    if idioma.upper() != "EN":
+        return base
+    chave = {"titulo": "title", "resumo": "summary"}.get(campo)
+    traduzido = _carregar_traducoes_en().get("materials", {}).get(material_id, {}).get(chave)
+    return traduzido or base
+
+
+def texto_topico(topico: Topico, campo: str, idioma: str = "PT") -> Any:
+    """Texto localizado do tópico, preservando o conteúdo original como fallback."""
+    base = getattr(topico, campo)
+    if idioma.upper() != "EN":
+        return base
+    chave = {
+        "titulo": "title",
+        "problema": "problem",
+        "solucao_provisoria": "solution",
+        "passos": "steps",
+    }.get(campo)
+    traduzido = _carregar_traducoes_en().get("topics", {}).get(topico.id, {}).get(chave)
+    return traduzido or base
+
+
+def cenarios_topico(topico: Topico, idioma: str = "PT") -> list[str]:
+    """Rótulos localizados dos cenários, mantendo o alinhamento das faixas de tempo."""
+    base = [faixa.cenario for faixa in topico.tabela_tempo]
+    if idioma.upper() != "EN":
+        return base
+    traduzidos = _carregar_traducoes_en().get("topics", {}).get(topico.id, {}).get("scenarios")
+    return traduzidos if isinstance(traduzidos, list) and len(traduzidos) == len(base) else base
+
+
 def obter_topico(topico_id: str, caminho: Path = CAMINHO_ACERVO) -> Topico | None:
     return next((t for t in todos_topicos(caminho) if t.id == topico_id), None)
 
@@ -113,17 +158,59 @@ def buscar(texto: str, intencao: str | None = None, caminho: Path = CAMINHO_ACER
     return melhor[1] if melhor else None
 
 
-def estimar(topico: Topico, indice_cenario: int, agora: datetime | None = None) -> Estimativa:
-    """Converte a faixa de tempo do cenário em janela de hora e data a partir de `agora`.
+FUSO_HORARIO = ZoneInfo("America/Sao_Paulo")
+INICIO_EXPEDIENTE = time(9, 0)
+FIM_EXPEDIENTE = time(18, 0)
 
-    Apoio à Marina: mostra a janela provável, mas quem escreve o prazo é ela.
+
+def _proximo_dia_util(data: date) -> date:
+    proxima = data + timedelta(days=1)
+    while proxima.weekday() >= 5:
+        proxima += timedelta(days=1)
+    return proxima
+
+
+def _ajustar_para_expediente(instante: datetime) -> datetime:
+    """Move para o próximo minuto dentro do expediente de segunda a sexta."""
+    local = instante.replace(tzinfo=FUSO_HORARIO) if instante.tzinfo is None else instante.astimezone(FUSO_HORARIO)
+    while True:
+        if local.weekday() >= 5:
+            local = datetime.combine(_proximo_dia_util(local.date()), INICIO_EXPEDIENTE, FUSO_HORARIO)
+        elif local.time() < INICIO_EXPEDIENTE:
+            local = datetime.combine(local.date(), INICIO_EXPEDIENTE, FUSO_HORARIO)
+        elif local.time() >= FIM_EXPEDIENTE:
+            local = datetime.combine(_proximo_dia_util(local.date()), INICIO_EXPEDIENTE, FUSO_HORARIO)
+        else:
+            return local
+
+
+def _somar_minutos_uteis(instante: datetime, minutos: int) -> datetime:
+    """Soma minutos de expediente (09h–18h, dias úteis, sem calendário de feriados)."""
+    local = _ajustar_para_expediente(instante)
+    restantes = minutos
+    while restantes > 0:
+        fechamento = datetime.combine(local.date(), FIM_EXPEDIENTE, FUSO_HORARIO)
+        disponiveis = int((fechamento - local).total_seconds() // 60)
+        if restantes <= disponiveis:
+            return local + timedelta(minutes=restantes)
+        restantes -= disponiveis
+        local = datetime.combine(_proximo_dia_util(local.date()), INICIO_EXPEDIENTE, FUSO_HORARIO)
+    return local
+
+
+def estimar(topico: Topico, indice_cenario: int, agora: datetime | None = None) -> Estimativa:
+    """Estima a janela em minutos úteis, de segunda a sexta, 09h–18h em São Paulo.
+
+    As faixas são fictícias, não constituem SLA e não incluem feriados. Horários
+    ingênuos são interpretados como horário local de São Paulo.
     """
-    agora = agora or datetime.now()
+    agora = agora or datetime.now(FUSO_HORARIO)
     faixa = topico.tabela_tempo[indice_cenario]
+    inicio = _ajustar_para_expediente(agora)
     return Estimativa(
         cenario=faixa.cenario,
         minutos_min=faixa.min,
         minutos_max=faixa.max,
-        previsto_de=agora + timedelta(minutes=faixa.min),
-        previsto_ate=agora + timedelta(minutes=faixa.max),
+        previsto_de=_somar_minutos_uteis(inicio, faixa.min),
+        previsto_ate=_somar_minutos_uteis(inicio, faixa.max),
     )

@@ -79,12 +79,25 @@ def test_rascunho_reage_a_leitura_e_palpites_da_percepcao():
         assert r.passou_guardrail, (chave, r.feedback_guardrail)
 
 
+def test_formatar_sugestao_acervo_ingles_mantem_pendencia_detectavel():
+    texto = formatar_sugestao_acervo(
+        triar(CARLOS), "secure browser-based webmail", idioma="EN"
+    )
+
+    assert "Hello, @!" in texto
+    assert "[secure browser-based webmail]" in texto
+    assert "[RETURN TIME: analyst fills]" in texto
+    assert pendencias_abertas(texto) == ["[RETURN TIME: analyst fills]"]
+
+
 def test_formatar_sugestao_acervo_substitui_solucao_provisoria_e_mantem_prazo_e_arroba():
     t = triar(CARLOS)
     solucao = "acesso alternativo ao módulo de faturamento pela versão web de contingência"
     texto = formatar_sugestao_acervo(t, solucao)
 
-    assert "Olá, Sr. @ !" in texto
+    assert "Olá, @!" in texto
+    assert "Com base no relato" in texto
+    assert "já está trabalhando" not in texto
     assert f"[{solucao}]" in texto
     assert PEND_PROVISORIA not in texto
     assert PEND_PRAZO in texto

@@ -1,0 +1,255 @@
+{
+  "notice": "FICTIONAL SIMULATION ONLY. All procedures and time ranges are invented, are not service-level commitments, and exclude public holidays. Have a service owner review before any real-world use.",
+  "materials": {
+    "M01": {
+      "title": "Corporate Systems: Instability and Outages",
+      "summary": "Guidance for failures in everyday business systems that block time-sensitive work."
+    },
+    "M02": {
+      "title": "Access and Credentials",
+      "summary": "Guidance for account lockouts, forgotten passwords, and access requests."
+    },
+    "M03": {
+      "title": "Connectivity and Performance",
+      "summary": "Guidance for VPN interruptions, unstable networks, and slow systems."
+    },
+    "M04": {
+      "title": "Devices and Workplace Equipment",
+      "summary": "Guidance for faulty peripherals and software installation requests."
+    },
+    "M05": {
+      "title": "Portal Usage Guidance",
+      "summary": "Guidance for common questions about customer portal features."
+    }
+  },
+  "topics": {
+    "M01-T01": {
+      "title": "Billing system freezing or unavailable",
+      "problem": "The billing system freezes or closes during month-end work, preventing the finance team from issuing or checking entries.",
+      "solution": "Use the contingency web version of the billing module, if authorized and available.",
+      "steps": [
+        "Confirm whether the issue affects one workstation or several.",
+        "If the service owner has approved it, guide the user to the contingency web version with their own account.",
+        "Ask the user to save current work before switching access methods.",
+        "Send the approximate failure time and on-screen message to the technical team."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M01-T02": {
+      "title": "Payroll system error when generating payslips",
+      "problem": "The payroll system reports an error while generating payslips or a payment file near its scheduled bank submission.",
+      "solution": "Generate a batch export for review, if the responsible payroll owner authorizes this workaround.",
+      "steps": [
+        "Record the exact error message and the generation step where it appears.",
+        "If approved by the payroll owner, guide the user through a batch export for review.",
+        "Make clear that the responsible team must verify the figures before sending anything.",
+        "Escalate the original module error to the technical team."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M01-T03": {
+      "title": "Corporate email will not open or send messages",
+      "problem": "The email client will not open or send messages, and a message with an attachment is due at a scheduled time.",
+      "solution": "Use the corporate webmail service in a browser, if available and authorized.",
+      "steps": [
+        "Confirm whether the issue occurs only in the installed application or also in a browser.",
+        "If available, guide the user to corporate webmail using their own sign-in; never request or share their password.",
+        "For urgent work, use only an approved internal channel for the attachment.",
+        "Escalate recurring failures to the technical team."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M01-T04": {
+      "title": "Reports show outdated data",
+      "problem": "Management reports show data from previous days, while a team needs current information for a meeting or deliverable.",
+      "solution": "Use a direct-query export for review, only if the data owner authorizes it.",
+      "steps": [
+        "Confirm which report is affected and the date of its latest update.",
+        "If permitted, guide the user through a direct-query spreadsheet export.",
+        "Ask the responsible business owner to verify exported figures before use.",
+        "Escalate the automatic refresh failure to the technical team."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M02-T01": {
+      "title": "Forgotten password or locked account",
+      "problem": "The user cannot sign in to the portal because the password was forgotten or the account was locked after failed attempts.",
+      "solution": "Use the portal's self-service password reset, if that feature is enabled.",
+      "steps": [
+        "Follow the organization's approved identity-verification process; do not ask for a password or one-time code.",
+        "Guide the user to the portal's self-service reset link, if available.",
+        "If the account remains locked, route the request to the access team.",
+        "Ask the user to confirm whether they can sign in after the reset."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M02-T02": {
+      "title": "ERP access unavailable to a team",
+      "problem": "An entire team has lost ERP access and cannot issue invoices or serve customers.",
+      "solution": "Use an individually assigned contingency account only if approved by the system owner; do not share credentials.",
+      "steps": [
+        "Confirm how many people are affected and when the outage began.",
+        "Check for a recorded maintenance notice or broader outage.",
+        "Ask the system owner to approve an individual contingency-access path for critical work.",
+        "Escalate as a team-impacting incident."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M02-T03": {
+      "title": "Request access to a shared folder",
+      "problem": "A user requests access to another person's shared folder, such as an HR folder, within an agreed timeframe.",
+      "solution": "Share only specifically approved files through an organization-approved, expiring link, if permitted.",
+      "steps": [
+        "Confirm the requested folder and the business need without collecting unnecessary personal data.",
+        "Verify that the request has approval from the folder owner or manager.",
+        "If permitted, share only the requested files through an approved expiring link.",
+        "Submit the permanent permission request to the access team."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M02-T04": {
+      "title": "Two-factor verification code does not arrive",
+      "problem": "The user does not receive a verification code by SMS or authenticator app and cannot complete sign-in.",
+      "solution": "Use a previously generated recovery code only if the user still has it; never ask them to disclose it.",
+      "steps": [
+        "Confirm the registered verification method and whether the device has signal and the correct time.",
+        "The user may enter their own recovery code if one is available; support staff must not collect it.",
+        "If no recovery option is available, route a verified reset request to the access team.",
+        "Ask the user to update their registered contact method after regaining access."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M03-T01": {
+      "title": "VPN disconnects repeatedly",
+      "problem": "The VPN disconnects several times in one day, leaving the user without access to internal systems.",
+      "solution": "Use an approved secure web portal that does not require VPN, if one is available.",
+      "steps": [
+        "Confirm whether other users are affected or only this user.",
+        "If approved, guide the user to the secure web portal for the required systems.",
+        "A different network may be used as a diagnostic test only when policy allows it.",
+        "Escalate to the network team with the times of the disconnections."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M03-T02": {
+      "title": "System is slow but still working",
+      "problem": "Systems respond more slowly than usual but work is not fully blocked.",
+      "solution": "Schedule resource-intensive work outside peak hours, if the business owner agrees.",
+      "steps": [
+        "Confirm whether slowness affects one system or several.",
+        "Suggest closing unused tabs and applications as a low-risk check.",
+        "If appropriate, schedule long reports or processing outside peak hours.",
+        "Record the issue for monitoring and avoid assigning urgency without evidence."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M03-T03": {
+      "title": "Office Wi-Fi is unstable",
+      "problem": "The office wireless network drops or loses internet access for a group of people.",
+      "solution": "Use a wired network connection at an available approved desk, if practical.",
+      "steps": [
+        "Confirm how many people and which areas of the office are affected.",
+        "Where available, try an approved wired network connection.",
+        "Check for a known alternate office network only if authorized.",
+        "Escalate as a network infrastructure issue."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M03-T04": {
+      "title": "Video meeting has no audio or video",
+      "problem": "The user cannot use a microphone, camera, or sound in a scheduled meeting.",
+      "solution": "Join by phone using the meeting invitation's dial-in details, if provided and approved.",
+      "steps": [
+        "Confirm the application and whether the device appears in its audio/video settings.",
+        "Check microphone and camera permissions in the browser or application.",
+        "If the meeting is imminent, use the invitation's phone option when available.",
+        "Record the issue for device support if it continues."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M04-T01": {
+      "title": "Department printer is unavailable",
+      "problem": "A floor or department printer has stopped working and documents are needed for a same-day commitment.",
+      "solution": "Use another printer already authorized for the user's department, if one is available.",
+      "steps": [
+        "Confirm the floor, printer model, and any message on its display.",
+        "Identify an approved alternate printer for the department, if available.",
+        "If suitable, save documents as PDF for printing later.",
+        "Open a field-support request for the faulty printer."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M04-T02": {
+      "title": "Install software on a workstation",
+      "problem": "A user requests software installation on a new or reassigned device.",
+      "solution": "Use the application's approved online version while the installation request is reviewed, if licensing allows.",
+      "steps": [
+        "Confirm the software name, version, and intended device.",
+        "Check license availability and required manager approval.",
+        "If the license permits, point to the approved online version.",
+        "Coordinate the installation request with field support."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M04-T03": {
+      "title": "Laptop will not power on",
+      "problem": "The user's laptop will not start or shuts down unexpectedly, disrupting the day's work.",
+      "solution": "Use an approved virtual desktop from another authorized device, if available.",
+      "steps": [
+        "Check whether the charger is connected and any indicator light is on.",
+        "If available and approved, use the virtual desktop from another authorized device.",
+        "Explain that only files stored in approved cloud storage may be available elsewhere.",
+        "Open a field-support request and ask whether a loan device is available."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M04-T04": {
+      "title": "Mouse, keyboard, or monitor is not working",
+      "problem": "A peripheral has failed and the user cannot operate the workstation normally.",
+      "solution": "Use an approved spare peripheral from the designated equipment desk, if available.",
+      "steps": [
+        "Confirm which peripheral failed and whether another approved port works.",
+        "If available, collect a spare from the designated equipment desk.",
+        "Record the faulty item for replacement or disposal.",
+        "Confirm whether the workstation is usable again."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M05-T01": {
+      "title": "Export a monthly report as PDF",
+      "problem": "The user cannot find the export button for a monthly PDF report.",
+      "solution": "Use the browser's print option and choose Save as PDF, if permitted.",
+      "steps": [
+        "Confirm which screen the user is on and which report they need.",
+        "Guide them to the browser print option and Save as PDF, if enabled.",
+        "Explain where the export control normally appears for their user profile.",
+        "Record the issue for interface review if the control is missing."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M05-T02": {
+      "title": "Change the billing address",
+      "problem": "The user wants to change the billing address and is unsure whether the portal supports it.",
+      "solution": "Use the portal's profile-update form, if the user's role is authorized to do so.",
+      "steps": [
+        "Navigate to Customer Area, Profile Details, then Billing Address, if those options are enabled.",
+        "Explain that the change may require confirmation from the finance owner.",
+        "If the user's role cannot edit the address, submit an authorized profile-update request.",
+        "Confirm whether the user found the correct process."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M05-T03": {
+      "title": "Get a duplicate invoice or payment slip",
+      "problem": "The user needs a duplicate invoice or payment slip and cannot find it in the portal.",
+      "solution": "Use the portal's invoice area to generate a duplicate, if the user's role permits it.",
+      "steps": [
+        "Confirm the invoice period without requesting unnecessary account details.",
+        "Guide the user to Customer Area, Invoices, then Generate Duplicate, if available.",
+        "If the invoice is missing, submit an authorized request to Finance.",
+        "Ask the user to verify the due date shown on the document."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    }
+  }
+}

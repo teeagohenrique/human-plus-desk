@@ -17,7 +17,14 @@ from src.mascara import mascarar
 from src.triagem import Triagem
 
 PEND_PRAZO = "[PRAZO DE RETORNO: a analista preenche]"
+PEND_PRAZO_EN = "[RETURN TIME: analyst fills]"
 PEND_PROVISORIA = "[SOLUÇÃO PROVISÓRIA, se houver: a analista preenche]"
+class Sugestao(str):
+    """Texto de sugestao do acervo com o resultado do guardrail em atributos."""
+
+    passou_guardrail: bool
+    feedback_guardrail: str
+
 
 _PLACEHOLDER = re.compile(r"\[[^\]]*\]")
 _PENDENCIA_ANALISTA = re.compile(r"\[[^\]]*(?:analista\s+preenche|analyst\s+fills)[^\]]*\]", re.IGNORECASE)
@@ -138,34 +145,76 @@ def pendencias_abertas(texto: str) -> list[str]:
     return _PENDENCIA_ANALISTA.findall(texto or "")
 
 
-def formatar_sugestao_acervo(triagem: Triagem, solucao_provisoria: str) -> str:
-    """Monta a sugestão estruturada com a solução provisória do acervo e o `@` do paciente.
+def formatar_sugestao_acervo(
+    triagem: Triagem, solucao_provisoria: str, idioma: str = "PT",
+    chamado_mascarado: str = "",
+) -> Sugestao:
+    """Monta a sugestao estruturada com a solucao provisoria do acervo e o `@` do paciente.
 
-    Substitui `[SOLUÇÃO PROVISÓRIA, se houver: a analista preenche]` por
-    `[<solucao_provisoria>]` e mantém apenas `[PRAZO DE RETORNO: a analista preenche]`
-    para a Marina preencher com base na simulação de tempo do acervo.
+    Substitui `[SOLUCAO PROVISORIA, se houver: a analista preenche]` por
+    `[<solucao_provisoria>]` e mantem apenas `[PRAZO DE RETORNO: a analista preenche]`
+    para a Marina preencher com base na simulacao de tempo do acervo.
+
+    O guardrail aplica `validar_rascunho` sobre o conteudo da solucao (o que vira entre
+    `[ ]`): prazo/compromisso prometido, rotulo sobre a pessoa, numeros fora do chamado
+    e dado sem mascara. O resultado fica disponivel em `passou_guardrail` e
+    `feedback_guardrail`; o texto retornado segue sendo uma `str` para nao quebrar a
+    interface que consome a sugestao.
     """
     prazo = next((m.trecho for m in triagem.motivos_urgencia if m.sinal == "prazo"), None)
-    trecho_prazo = (
-        f"e a importância de cumprir o prazo estabelecido ({prazo})"
+    contexto_prazo_pt = (
+        f'Prazo mencionado no chamado: "{prazo}".'
         if prazo
-        else "e a importância de restabelecer o seu atendimento com rapidez"
+        else "A analista deve avaliar a prioridade com base no impacto informado."
     )
     resumo = RESUMOS.get(triagem.intencao, "uma instabilidade no sistema")
+    resumos_en = {
+        "falha_sistema": "a system issue",
+        "acesso": "an access issue",
+        "reclamacao": "a service concern",
+        "solicitacao": "a request",
+        "duvida": "a usage question",
+        "indefinida": "the reported issue",
+    }
+    resumo_en = resumos_en.get(triagem.intencao, "the reported issue")
     solucao_limpa = solucao_provisoria.strip().strip("[]")
-    return (
-        "Olá, Sr. @ !\n"
-        f"Compreendemos a urgência da situação {trecho_prazo}. "
-        f"Identificamos que o problema está relacionado a {resumo} e nossa equipe técnica "
-        "já está trabalhando para solucioná-lo.\n"
-        f"Enquanto a correção definitiva não é concluída, recomendamos utilizar "
-        f"[{solucao_limpa}], permitindo a continuidade das suas atividades.\n"
-        f"Nossa previsão é de retornar até {PEND_PRAZO}, com uma atualização sobre o "
-        "andamento da solicitação e as providências adotadas.\n"
-        "Agradecemos pela compreensão e reforçamos nosso compromisso em oferecer o suporte "
-        "necessário para resolver essa situação com a maior brevidade possível.\n"
-        "Atenciosamente,\n"
-        "Marina\n"
-        "Analista de Suporte ao Cliente | Human+Desk"
-    )
-
+    # Guardrail do acervo: a solucao nao pode prometer prazo, rotular a pessoa,
+    # citar numeros fora do chamado ou conter dado sem mascara.
+    ok, feedback = validar_rascunho(solucao_limpa, chamado_mascarado or "")
+    if idioma.upper() == "EN":
+        contexto_prazo = (
+            f'The request mentions the timeframe "{prazo}".'
+            if prazo
+            else "The analyst should assess priority based on the reported impact."
+        )
+        texto = chr(10).join([
+            "Hello, @!",
+            contexto_prazo,
+            f"Based on the description, this may relate to {resumo_en}.",
+            f"If available and authorized, the analyst may consider [{solucao_limpa}] as a temporary option.",
+            f"Return timeframe, to be confirmed by the analyst: {PEND_PRAZO_EN}.",
+            "Thank you for contacting us.",
+            "Best regards.",
+            "Marina",
+            "Service Desk Analyst | Human+Desk",
+        ])
+    else:
+        texto = (
+            "Olá, @!\n"
+            f"{contexto_prazo_pt} "
+            f"Com base no relato, o tema pode estar relacionado a {resumo}. "
+            "A equipe responsável poderá avaliar os próximos passos.\n"
+            f"Se estiver disponível e autorizada, a analista pode avaliar esta alternativa provisória: "
+            f"[{solucao_limpa}].\n"
+            f"Prazo de retorno, a confirmar pela analista: {PEND_PRAZO}. Próxima atualização sobre o "
+            "andamento dependerá da confirmação da equipe responsável. "
+            "Agradecemos pelo contato. "
+            "A analista confirmará os próximos passos após validar as informações.\n"
+            "Atenciosamente,\n"
+            "Marina\n"
+            "Analista de Suporte ao Cliente | Human+Desk"
+        )
+    resultado = Sugestao(texto)
+    resultado.passou_guardrail = ok
+    resultado.feedback_guardrail = feedback
+    return resultado

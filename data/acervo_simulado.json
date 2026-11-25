@@ -22,10 +22,10 @@
             "lançamento",
             "financeiro"
           ],
-          "solucao_provisoria": "acesso alternativo ao módulo de faturamento pela versão web de contingência",
+          "solucao_provisoria": "versão web de contingência do módulo de faturamento, se disponível e autorizada",
           "passos": [
             "Confirmar com o cliente se o travamento ocorre em uma máquina só ou em várias.",
-            "Orientar o acesso ao módulo de faturamento pela versão web de contingência, com o mesmo usuário e senha.",
+            "Orientar o acesso ao módulo de faturamento pela versão web de contingência, se disponível e autorizado, usando as próprias credenciais do cliente sem compartilhá-las.",
             "Pedir que o cliente salve o que já foi lançado antes de trocar de acesso.",
             "Encaminhar à equipe técnica o horário aproximado das falhas e a mensagem exibida na tela."
           ],
@@ -62,10 +62,10 @@
             "contracheque",
             "erro ao gerar"
           ],
-          "solucao_provisoria": "geração dos holerites em lote pelo módulo de exportação, em formato de planilha",
+          "solucao_provisoria": "exportação em lote para conferência, se autorizada pela pessoa responsável pela folha",
           "passos": [
             "Registrar a mensagem de erro exata e em qual etapa da geração ela aparece.",
-            "Orientar a geração em lote pelo módulo de exportação, em formato de planilha, para conferência.",
+            "Orientar, se autorizado pela pessoa responsável pela folha, a exportação em lote apenas para conferência.",
             "Avisar que a conferência manual deve ser feita pelo setor responsável antes de qualquer envio.",
             "Encaminhar à equipe técnica para correção do módulo original."
           ],
@@ -106,7 +106,7 @@
           "solucao_provisoria": "webmail corporativo pelo navegador",
           "passos": [
             "Confirmar se o problema é só no aplicativo instalado ou também no navegador.",
-            "Orientar o acesso ao webmail corporativo pelo navegador, com as mesmas credenciais.",
+            "Orientar o acesso ao webmail corporativo com as próprias credenciais; nunca solicitar ou compartilhar senha.",
             "Se for urgente, oferecer o envio do anexo por canal interno, mediante aprovação da supervisão.",
             "Encaminhar à equipe técnica a recorrência do problema, caso já tenha ocorrido antes."
           ],
@@ -195,7 +195,7 @@
           ],
           "solucao_provisoria": "redefinição de senha pelo link de autoatendimento do portal",
           "passos": [
-            "Confirmar a identidade do cliente pelos dados cadastrais já registrados.",
+            "Seguir o processo aprovado de verificação de identidade; não pedir senha nem código de uso único.",
             "Orientar a redefinição pelo link de autoatendimento do portal.",
             "Se o usuário estiver bloqueado, solicitar o desbloqueio à equipe de acessos.",
             "Pedir que o cliente confirme se conseguiu entrar após a redefinição."
@@ -235,11 +235,11 @@
             "comercial",
             "equipe"
           ],
-          "solucao_provisoria": "acesso ao ERP por um usuário de contingência do setor",
+          "solucao_provisoria": "acesso de contingência individual, somente se aprovado pela pessoa responsável pelo sistema",
           "passos": [
             "Confirmar quantas pessoas estão afetadas e desde quando.",
             "Verificar se há aviso de manutenção ou indisponibilidade geral registrado.",
-            "Liberar, com aprovação da supervisão, um usuário de contingência do setor para as emissões mais urgentes.",
+            "Solicitar à pessoa responsável autorização para um fluxo de contingência com acesso individual; não compartilhar contas.",
             "Encaminhar à equipe técnica como incidente de impacto coletivo."
           ],
           "tabela_tempo": [
@@ -317,10 +317,10 @@
             "token",
             "autenticação"
           ],
-          "solucao_provisoria": "código de recuperação gerado previamente na conta",
+          "solucao_provisoria": "código de recuperação gerado previamente na conta; o próprio usuário deve inseri-lo sem compartilhá-lo",
           "passos": [
             "Confirmar o método de verificação cadastrado e se o aparelho está com sinal ou hora correta.",
-            "Orientar o uso do código de recuperação gerado previamente, se houver.",
+            "Se existir código de recuperação, orientar o próprio usuário a inseri-lo; suporte nunca deve coletá-lo.",
             "Sem código de recuperação, solicitar à equipe de acessos a redefinição do método de verificação.",
             "Pedir que o cliente atualize o telefone cadastrado depois de entrar."
           ],
@@ -369,7 +369,7 @@
           "passos": [
             "Confirmar se a queda ocorre com outros usuários ou só com este cliente.",
             "Orientar o acesso pelo portal web seguro, sem VPN, aos sistemas mais necessários.",
-            "Sugerir trocar de rede (por exemplo, compartilhar a conexão do celular) para testar.",
+            "Sugerir uma rede alternativa apenas se permitido pela política da organização; não solicitar credenciais para teste.",
             "Encaminhar à equipe de redes com os horários das quedas."
           ],
           "tabela_tempo": [
