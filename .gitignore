@@ -29,3 +29,7 @@ human_desk.db-shm
 # Arquivos do sistema
 Thumbs.db
 .DS_Store
+
+# Notas de estudo, revisões e roteiros locais (fora do pacote de código)
+_revisoes/
+*_Roteiro_Apresentacao*
