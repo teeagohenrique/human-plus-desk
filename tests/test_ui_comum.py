@@ -6,6 +6,7 @@ O modulo depende de Streamlit e Altair. As funcoes puras sao testadas direto;
 import json
 from datetime import datetime
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import altair as alt
 import pytest
@@ -26,10 +27,12 @@ def test_formatar_data_hora_sem_fuso_mantem_hora_local():
     assert ui_comum.formatar_data_hora("2026-11-23T10:30:45") == "23/11/2026 às 10:30:45"
 
 
-def test_formatar_data_hora_com_fuso_converte_para_horario_local():
-    """O esperado e calculado com a biblioteca padrao para nao fixar o fuso da maquina."""
+def test_formatar_data_hora_com_fuso_converte_para_sao_paulo():
+    """A conversao e fixa em America/Sao_Paulo, qualquer que seja o fuso da maquina."""
     iso = "2026-11-23T10:30:45+00:00"
-    esperado = datetime.fromisoformat(iso).astimezone().strftime("%d/%m/%Y às %H:%M:%S")
+    esperado = datetime.fromisoformat(iso).astimezone(
+        ZoneInfo("America/Sao_Paulo")
+    ).strftime("%d/%m/%Y às %H:%M:%S")
     assert ui_comum.formatar_data_hora(iso) == esperado
 
 
