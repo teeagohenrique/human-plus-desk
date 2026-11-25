@@ -62,8 +62,11 @@ def _ir_para_etapa(item_id: str, destino: str) -> None:
 
 def _ao_trocar_camada(item_id: str) -> None:
     estados = st.session_state.setdefault("estado_chamados", {})
-    if item_id in estados:
+    nova = st.session_state.get(f"camada_{item_id}")
+    if item_id in estados and nova != "acervo":
         estados[item_id]["aba_acervo_aberta"] = False
+        if nova in ("chamado", "decisao", "resposta"):
+            estados[item_id]["camada"] = nova
 
 
 def _aplicar_acervo_na_sugestao(
@@ -102,9 +105,13 @@ def _abrir_acervo(item, origem: str) -> None:
     """Abre a aba do Acervo a partir da Análise Contextual ou do Registro e atualiza a sugestão OARS."""
     estado = _estado_item(item)
     topico, _ = topico_do_item(item)
+    origem_valida = origem if origem in ("chamado", "decisao", "resposta") else estado.get("camada", "chamado")
+    if origem_valida not in ("chamado", "decisao", "resposta"):
+        origem_valida = "chamado"
     estado["viu_chamado"] = True
-    estado["camada_origem_acervo"] = origem
+    estado["camada_origem_acervo"] = origem_valida
     estado["aba_acervo_aberta"] = True
+    st.session_state[f"camada_{item.id}"] = "acervo"
     if topico is not None:
         _aplicar_acervo_na_sugestao(item, estado, topico)
 
@@ -113,6 +120,8 @@ def _voltar_do_acervo(item_id: str) -> None:
     estados = st.session_state.setdefault("estado_chamados", {})
     if item_id in estados:
         origem = estados[item_id].get("camada_origem_acervo") or "chamado"
+        if origem not in ("chamado", "decisao", "resposta"):
+            origem = "chamado"
         estados[item_id]["aba_acervo_aberta"] = False
         estados[item_id]["camada"] = origem
         st.session_state[f"camada_{item_id}"] = origem
@@ -230,13 +239,31 @@ def _render_indicadores(txt: dict, total: int, qtd_fila: int, qtd_critica: int, 
 
 # ---------------------------------------------------------------- blocos reutilizáveis
 
+def _indice_alvo_acervo(hipoteses: list[dict]) -> int | None:
+    """Escolhe o único parecer que recebe o botão do Acervo dentro da caixa.
+
+    Prioriza o parecer de repetição ('Parece que a repetição pode estar pesando...');
+    se não houver, usa o parecer ligado ao tópico do acervo ou o primeiro disponível.
+    """
+    if not hipoteses:
+        return None
+    for idx, h in enumerate(hipoteses):
+        texto = str(h.get("hipotese", ""))
+        if "repetição pode estar pesando" in texto or h.get("tipo") == "risco_recorrencia":
+            return idx
+    for idx, h in enumerate(hipoteses):
+        if h.get("acervo_topico_id"):
+            return idx
+    return 0
+
+
 def _render_supervisao(
     txt: dict,
     d: dict,
     chave_unica: str,
     subtitulo: str | None = None,
     item=None,
-    origem: str | None = None,
+    camada_origem: str = "resposta",
 ) -> None:
     """Registro de supervisão (somente leitura) com exibição em cascata.
 
@@ -265,7 +292,11 @@ def _render_supervisao(
             "detalhe": f"{txt['sup_reading']}: {leitura_desc}",
         }
     ]
-    for indice, h in enumerate(d.get("hipoteses") or []):
+    hipoteses = d.get("hipoteses") or []
+    topico_ac = topico_do_item(item)[0] if item is not None else None
+    alvo_btn = _indice_alvo_acervo(hipoteses) if (item is not None and topico_ac is not None) else None
+
+    for indice, h in enumerate(hipoteses):
         ev_texto = " | ".join(
             f"{nome_sinal(e['sinal'], txt)}: “{e['trecho']}”"
             for e in h.get("evidencias", [])
@@ -273,28 +304,26 @@ def _render_supervisao(
         extra = linha_acervo(h.get("acervo_topico_id"), h.get("acervo_palavras"), txt)
         if extra:
             ev_texto = f"{ev_texto} | {extra}" if ev_texto else extra
-        itens_sup.append(
-            {
-                "titulo": traduzir_hipotese_salva(h["hipotese"], len(h.get("evidencias", [])), txt),
-                "badge": niveis.get(h["confianca"], h["confianca"]),
-                "detalhe": ev_texto,
+        bloco_hip: dict = {
+            "titulo": traduzir_hipotese_salva(h["hipotese"], len(h.get("evidencias", [])), txt),
+            "badge": niveis.get(h["confianca"], h["confianca"]),
+            "detalhe": ev_texto,
+        }
+        if indice == alvo_btn:
+            bloco_hip["button"] = {
+                "label": txt["acervo_open_btn_sup"],
+                "key": f"abrir_acervo_3_{item.id}",
+                "on_click": _abrir_acervo,
+                "args": (item, camada_origem),
             }
-        )
-        # Botão "Consultar solução do Acervo" dentro da caixa, junto à hipótese.
-        if item is not None and origem:
-            itens_sup.append(
-                {
-                    "titulo": txt["acervo_open_btn_sup"],
-                    "badge": "",
-                    "detalhe": "",
-                    "button": {
-                        "label": txt["acervo_open_btn_sup"],
-                        "key": f"abrir_acerto_sup_{item.id}_{indice}",
-                        "on_click": _abrir_acervo,
-                        "args": (item, origem),
-                    },
-                }
-            )
+        itens_sup.append(bloco_hip)
+    if item is not None and topico_ac is not None and alvo_btn is None:
+        itens_sup[0]["button"] = {
+            "label": txt["acervo_open_btn_sup"],
+            "key": f"abrir_acervo_3_{item.id}",
+            "on_click": _abrir_acervo,
+            "args": (item, camada_origem),
+        }
 
     render_card_cascata(
         txt["box_supervision"],
@@ -437,21 +466,34 @@ def _etapa_analise(item, txt: dict) -> None:
             vazio=txt["no_evidences"],
         )
 
+    topico_ac, _ = topico_do_item(item)
+    hips_dict = [
+        {"tipo": p.tipo, "hipotese": p.hipotese, "acervo_topico_id": p.acervo_topico_id}
+        for p in item.palpites
+    ]
+    alvo_hip = _indice_alvo_acervo(hips_dict) if topico_ac is not None else None
+
     itens_hip = []
-    for p in item.palpites:
+    for idx, p in enumerate(item.palpites):
         hip_txt, perg_txt = traduzir_palpite(p, txt)
         detalhe = f"{txt['confirm_q']} {perg_txt}"
         extra = linha_acervo(p.acervo_topico_id, p.acervo_palavras, txt)
         if extra:
             detalhe = f"{detalhe} | {extra}"
-        itens_hip.append(
-            {
-                "titulo": hip_txt,
-                "detalhe": detalhe,
-                "badge": niveis.get(p.confianca, p.confianca),
-                "alerta": txt["raise_warn"] if p.sugere_subir_urgencia else "",
+        bloco_p: dict = {
+            "titulo": hip_txt,
+            "detalhe": detalhe,
+            "badge": niveis.get(p.confianca, p.confianca),
+            "alerta": txt["raise_warn"] if p.sugere_subir_urgencia else "",
+        }
+        if idx == alvo_hip:
+            bloco_p["button"] = {
+                "label": txt["acervo_open_btn_sup"],
+                "key": f"abrir_acervo_1_{item.id}",
+                "on_click": _abrir_acervo,
+                "args": (item, "chamado"),
             }
-        )
+        itens_hip.append(bloco_p)
     with col_analise:
         render_card_cascata(
             txt["perception"],
@@ -459,10 +501,9 @@ def _etapa_analise(item, txt: dict) -> None:
             chave_unica=f"analise_{item.id}",
             vazio=txt["no_guesses"],
         )
-        topico_ac, _ = topico_do_item(item)
-        if topico_ac is not None:
+        if topico_ac is not None and alvo_hip is None:
             st.button(
-                txt["acervo_open_btn"].format(titulo=topico_ac.titulo),
+                txt["acervo_open_btn_sup"],
                 key=f"abrir_acervo_1_{item.id}",
                 width="stretch",
                 on_click=_abrir_acervo,
@@ -746,17 +787,8 @@ def _etapa_resposta(item, estado: dict, txt: dict, agente: str, provider: str) -
             chave_unica=f"sup_resp_{item.id}",
             subtitulo=txt["box_supervision_hint"],
             item=item,
-            origem=origem,
+            camada_origem="resposta",
         )
-        topico_ac, _ = topico_do_item(item)
-        if topico_ac is not None:
-            st.button(
-                txt["acervo_open_btn"].format(titulo=topico_ac.titulo),
-                key=f"abrir_acervo_3_{item.id}",
-                width="stretch",
-                on_click=_abrir_acervo,
-                args=(item, "resposta"),
-            )
 
     with st.container(border=True, key="caixa_resposta"):
         st.markdown(f"**{txt['box_reply']}**")
@@ -846,6 +878,8 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina") -> None:
         "decisao": ("✓" if urgencia is not None else "●", txt["layer_2"]),
         "resposta": ("✓" if pronta else "●", txt["layer_3"]),
     }
+    if estado.get("aba_acervo_aberta"):
+        etapas["acervo"] = ("📖", txt["acervo_label"])
     chips = (
         ("done", txt["chip_1_done"]) if estado["viu_chamado"]
         else (("alert", txt["chip_1_alert"]) if alerta else ("pending", txt["chip_1_pend"])),
@@ -871,15 +905,17 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina") -> None:
             + "</div>",
             unsafe_allow_html=True,
         )
-        # O widget é desmontado ao trocar de tela e o Streamlit limpa a chave;
-        # restaura-se o valor persistido antes de renderizar o controle.
-        st.session_state.setdefault(f"camada_{item.id}", estado["camada"])
+        # Reatribuição explícita mantém a aba ativa selecionada no frontend (incluindo 📖 Acervo).
+        aba_alvo = "acervo" if estado.get("aba_acervo_aberta") else estado["camada"]
+        if aba_alvo not in etapas:
+            aba_alvo = "chamado"
+        st.session_state[f"camada_{item.id}"] = aba_alvo
         escolhida = st.segmented_control(
             txt["steps_label"], options=list(etapas), format_func=lambda k: f"{etapas[k][1]} {etapas[k][0]}",
             label_visibility="collapsed", key=f"camada_{item.id}",
             on_change=_ao_trocar_camada, args=(item.id,),
         )
-        if escolhida is not None:
+        if escolhida in ("chamado", "decisao", "resposta") and not estado.get("aba_acervo_aberta"):
             estado["camada"] = escolhida
 
         if estado.get("aba_acervo_aberta"):

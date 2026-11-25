@@ -810,6 +810,48 @@
               "max": 120
             }
           ]
+        },
+        {
+          "id": "M05-T04",
+          "titulo": "Insatisfação recorrente e menção a cancelamento",
+          "intencoes": [
+            "reclamacao"
+          ],
+          "problema": "O cliente relata atendimento insatisfatório ou falhas não resolvidas e menciona intenção de cancelar o contrato.",
+          "palavras_chave": [
+            "cancelar",
+            "contrato",
+            "péssimo",
+            "pessimo",
+            "ninguém resolve",
+            "ninguem resolve",
+            "insatisfação",
+            "reclamação"
+          ],
+          "solucao_provisoria": "acompanhamento prioritário pela supervisão de relacionamento com revisão do histórico de chamados",
+          "passos": [
+            "Levantar os protocolos e ocorrências anteriores associadas à conta antes do retorno.",
+            "Acionar o canal prioritário de supervisão de atendimento para acompanhamento dedicado do caso.",
+            "Registrar os pontos pendentes relatados sem solicitar credenciais nem prometer condições comerciais fora da alçada.",
+            "Encaminhar o consolidado do histórico à coordenação responsável para tratativa prioritária."
+          ],
+          "tabela_tempo": [
+            {
+              "cenario": "Ocorrência isolada, um usuário",
+              "min": 20,
+              "max": 45
+            },
+            {
+              "cenario": "Recorrente ou vários usuários",
+              "min": 45,
+              "max": 90
+            },
+            {
+              "cenario": "Exige equipe técnica ou aprovação",
+              "min": 90,
+              "max": 180
+            }
+          ]
         }
       ]
     }

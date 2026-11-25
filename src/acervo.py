@@ -56,9 +56,10 @@ class Estimativa(BaseModel):
     previsto_ate: datetime
 
 
-@lru_cache(maxsize=4)
-def carregar(caminho: Path = CAMINHO_ACERVO) -> tuple[Material, ...]:
-    dados = json.loads(Path(caminho).read_text(encoding="utf-8"))
+@lru_cache(maxsize=8)
+def _carregar_por_mtime(caminho_resolvido: Path, mtime_ns: int) -> tuple[Material, ...]:
+    _ = mtime_ns
+    dados = json.loads(caminho_resolvido.read_text(encoding="utf-8"))
     materiais = []
     for m in dados["materiais"]:
         for t in m["topicos"]:
@@ -68,13 +69,27 @@ def carregar(caminho: Path = CAMINHO_ACERVO) -> tuple[Material, ...]:
     return tuple(materiais)
 
 
+def carregar(caminho: Path = CAMINHO_ACERVO) -> tuple[Material, ...]:
+    alvo = Path(caminho)
+    return _carregar_por_mtime(alvo, alvo.stat().st_mtime_ns)
+
+
+carregar.cache_clear = _carregar_por_mtime.cache_clear
+
+
 def todos_topicos(caminho: Path = CAMINHO_ACERVO) -> list[Topico]:
     return [t for m in carregar(caminho) for t in m.topicos]
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=4)
+def _traducoes_en_por_mtime(caminho_resolvido: Path, mtime_ns: int) -> dict:
+    _ = mtime_ns
+    return json.loads(caminho_resolvido.read_text(encoding="utf-8"))
+
+
 def _carregar_traducoes_en(caminho: Path = CAMINHO_ACERVO_EN) -> dict:
-    return json.loads(Path(caminho).read_text(encoding="utf-8"))
+    alvo = Path(caminho)
+    return _traducoes_en_por_mtime(alvo, alvo.stat().st_mtime_ns)
 
 
 def texto_material(material_id: str, campo: str, idioma: str = "PT") -> str:

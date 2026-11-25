@@ -468,6 +468,17 @@ def render_dxc_theme(dark_mode: bool = False) -> None:
             margin-bottom: 6px;
             margin-left: 8px;
         }}
+        div[class*="st-key-cascata_box_"] {{
+            background: {bg_cascata_1};
+            border: 1px solid {bd_cascata_1} !important;
+            border-left: 3px solid #7C3AED !important;
+            border-radius: 10px !important;
+            padding: 11px 14px !important;
+            margin-bottom: 8px !important;
+        }}
+        div[class*="st-key-cascata_box_"] .cascata-box-inner {{
+            margin-bottom: 8px;
+        }}
         .cascata-item-top {{
             display: flex;
             flex-wrap: wrap;
@@ -658,7 +669,8 @@ def render_card_cascata(
     state_key = f"cascata_visiveis_{chave_unica}"
     total = len(itens)
     lang = st.session_state.get("lang", "PT")
-    visiveis = min(max(int(st.session_state.get(state_key, 1)), 1), total) if total > 0 else 0
+    min_visiveis = max([1] + [i + 1 for i, it in enumerate(itens) if it.get("button")]) if total > 0 else 0
+    visiveis = min(max(int(st.session_state.get(state_key, min_visiveis)), min_visiveis), total) if total > 0 else 0
     if total > 0:
         contador = f"{visiveis} de {total}" if lang == "PT" else f"{visiveis} of {total}"
     else:
@@ -689,27 +701,41 @@ def render_card_cascata(
                 if item_detalhe
                 else ""
             )
-            st.markdown(
-                f'<div class="{classe}">'
-                f'<div class="cascata-item-top">'
-                f'<span class="cascata-item-title">{item_titulo}</span>'
-                f"{badge_html}"
-                f"</div>"
-                f"{detalhe_html}"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-            if item.get("alerta"):
-                st.warning(item["alerta"])
             _render_btn = item.get("button")
             if _render_btn:
-                st.button(
-                    _render_btn["label"],
-                    key=_render_btn["key"],
-                    width="stretch",
-                    on_click=_render_btn["on_click"],
-                    args=_render_btn.get("args", ()),
+                with st.container(key=f"cascata_box_{chave_unica}_{idx}"):
+                    st.markdown(
+                        f'<div class="cascata-box-inner">'
+                        f'<div class="cascata-item-top">'
+                        f'<span class="cascata-item-title">{item_titulo}</span>'
+                        f"{badge_html}"
+                        f"</div>"
+                        f"{detalhe_html}"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+                    if item.get("alerta"):
+                        st.warning(item["alerta"])
+                    st.button(
+                        _render_btn["label"],
+                        key=_render_btn["key"],
+                        width="stretch",
+                        on_click=_render_btn["on_click"],
+                        args=_render_btn.get("args", ()),
+                    )
+            else:
+                st.markdown(
+                    f'<div class="{classe}">'
+                    f'<div class="cascata-item-top">'
+                    f'<span class="cascata-item-title">{item_titulo}</span>'
+                    f"{badge_html}"
+                    f"</div>"
+                    f"{detalhe_html}"
+                    f"</div>",
+                    unsafe_allow_html=True,
                 )
+                if item.get("alerta"):
+                    st.warning(item["alerta"])
 
         if total > 1:
             lbl_next = "Mostrar próximo (+1) ↓" if lang == "PT" else "Show next (+1) ↓"

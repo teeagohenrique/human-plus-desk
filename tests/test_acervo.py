@@ -74,16 +74,16 @@ def test_estimar_pula_fim_de_semana_em_minutos_uteis():
     assert e.previsto_ate.isoformat() == "2026-11-30T11:30:00-03:00"
 
 
-def test_revisao_tem_19_topicos_com_faixas_nao_decrescentes():
+def test_revisao_tem_20_topicos_com_faixas_nao_decrescentes():
     topicos = acervo.todos_topicos()
-    assert len(topicos) == 19
+    assert len(topicos) == 20
     for topico in topicos:
         faixas = topico.tabela_tempo
         assert [f.min for f in faixas] == sorted(f.min for f in faixas), topico.id
         assert [f.max for f in faixas] == sorted(f.max for f in faixas), topico.id
 
 
-def test_acervo_bilingue_tem_traducao_completa_dos_19_topicos():
+def test_acervo_bilingue_tem_traducao_completa_dos_20_topicos():
     for topico in acervo.todos_topicos():
         assert acervo.texto_topico(topico, "titulo", "EN")
         assert acervo.texto_topico(topico, "problema", "EN")

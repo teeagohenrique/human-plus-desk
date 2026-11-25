@@ -250,6 +250,18 @@
         "Ask the user to verify the due date shown on the document."
       ],
       "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
+    },
+    "M05-T04": {
+      "title": "Recurring dissatisfaction and cancellation mention",
+      "problem": "The customer reports unsatisfactory support or unresolved issues and mentions cancelling the contract.",
+      "solution": "priority follow-up by relationship supervision with a review of previous tickets",
+      "steps": [
+        "Review previous tickets and occurrences linked to the account before replying.",
+        "Engage the priority supervision channel for dedicated case follow-up.",
+        "Log the pending points reported without requesting credentials or promising unauthorized commercial terms.",
+        "Forward the consolidated history to the responsible coordination team for priority handling."
+      ],
+      "scenarios": ["Isolated issue, one user", "Recurring issue or multiple users", "Technical team or approval required"]
     }
   }
 }

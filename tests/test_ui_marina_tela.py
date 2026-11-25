@@ -217,3 +217,45 @@ def test_marina_etapas_4_e_5_simular_passos_e_prazo_clicavel(itens_regras):
         assert at.session_state["estado_chamados"][chamado_id]["usou_sugestao"] is True
         assert f"[{janela}]" in at.text_area(key=f"resp_ui_{chamado_id}").value
         assert at.button(key=f"ok_{chamado_id}").disabled is False
+
+
+def test_marina_botao_unico_dentro_da_supervisao_abre_aba_acervo_inclusive_em_reclamacao():
+    import json
+    from pathlib import Path
+
+    from src.painel import carregar_historico, montar_fila
+
+    raiz = Path(__file__).resolve().parent.parent
+    chamados = [
+        c for c in json.loads((raiz / "data" / "chamados_simulados.json").read_text(encoding="utf-8"))["chamados"]
+        if c["id"] in ("C01", "C09")
+    ]
+    hist = carregar_historico(raiz / "data" / "historico_simulado.json")
+    itens = montar_fila(chamados, hist, provider="regras")
+
+    with _tela(itens) as at:
+        at.run(timeout=10)
+        at.button(key="btn_kpi_fila").click().run()
+        # Testa C09 (reclamação com parecer "Parece que a repetição pode estar pesando...")
+        at.radio(key="chamado_ativo_fila").set_value("C09").run()
+        at.button(key="go2_C09").click().run()
+        at.pills(key="urg_ui_C09").set_value("alta").run()
+        at.button(key="go3_C09").click().run()
+
+        # Deve haver apenas UM botão do acervo na Etapa 3 (dentro do Registro de supervisão)
+        botoes_acervo = [b for b in at.button if b.key and "acer" in b.key]
+        assert [b.key for b in botoes_acervo] == ["abrir_acervo_3_C09"]
+
+        # Ao clicar, abre a aba 📖 Acervo selecionada no segmented_control, com material M05-T04
+        at.button(key="abrir_acervo_3_C09").click().run()
+        assert not at.exception
+        assert at.session_state["estado_chamados"]["C09"]["aba_acervo_aberta"] is True
+        assert at.segmented_control(key="camada_C09").value == "acervo"
+        assert any("M05-T04" in m.value for m in at.markdown)
+
+        # Ao voltar, retorna exatamente para a Etapa 3 ("resposta")
+        at.button(key="voltar_acervo_C09").click().run()
+        assert not at.exception
+        assert at.session_state["estado_chamados"]["C09"]["aba_acervo_aberta"] is False
+        assert at.session_state["estado_chamados"]["C09"]["camada"] == "resposta"
+        assert at.segmented_control(key="camada_C09").value == "resposta"

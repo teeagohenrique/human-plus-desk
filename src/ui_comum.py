@@ -47,7 +47,7 @@ def _limpar_cache_filas() -> None:
 
 
 def fila_base(provider: str = "regras", model: str = "", txt: dict | None = None):
-    chave = (provider, model or "")
+    chave = (provider, model or "", "acervo_v2")
     cache = _cache_filas()
     if chave in cache:
         return list(cache[chave])
