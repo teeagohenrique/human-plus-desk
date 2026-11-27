@@ -9,6 +9,7 @@
 Branch `main` alinhado com `origin/main`; alterações publicadas.
 Working tree limpo (`git status`); push concluído para `origin/main`.
 Suíte de testes: **275 passed**. Zero imports quebrados.
+NER no CI: `src/ner_local.py:23` exige `pt_core_news_sm`; `requirements.txt:11-12` só documenta o download manual e `Dockerfile:19` instala no contêiner. O workflow passa a instalar o modelo antes dos testes (`.github/workflows/ci.yml:34-35`), sem depender do download automático do Presidio.
 Line endings: os arquivos editados estão em LF. Os avisos do Git sobre `LF will be replaced by CRLF` decorrem de `core.autocrlf=true` nesta máquina; o repositório não tem `.gitattributes`.
 
 ---
