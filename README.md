@@ -66,16 +66,16 @@ Para usar o Gemini, configure `GEMINI_API_KEY` e `GEMINI_MODEL` no `.env` da rai
 - A máscara cobre nomes próprios por heurística de prefixos e por NER local (`src/mascara.py`, `src/ner_local.py`), antes de qualquer envio externo. O modelo PT é instalado com `python -m spacy download pt_core_news_sm` (não está no PyPI).
 
 ## Benchmark de validação (50 chamados; resultados Gemini históricos em V01–V36)
-`data/chamados_validacao_independente.json` contém agora 50 casos sintéticos. V01–V36 preservam o lote original; V37–V50 são um lote complementar criado sem consultar o código das regras nem ajustar o prompt. Todos os dados são fictícios. Os novos gabaritos ainda precisam de revisão por especialistas; portanto, os resultados são exploratórios e não devem ser apresentados como validação definitiva.
+`data/chamados_validacao_independente.json` contém agora 50 casos sintéticos. V01–V36 preservam o lote original; V37–V50 são um lote complementar criado sem consultar o código das regras nem ajustar o prompt. Em 27/11/2026, uma simulação de revisão cega resultou na alteração de dois gabaritos: V39 (intenção `reclamacao` → `falha_sistema`) e V45 (urgência `media` → `baixa`). O arquivo original foi preservado em `data/_backup/chamados_validacao_independente.json`. Todos os dados são fictícios. Os novos gabaritos ainda precisam de revisão por especialistas; portanto, os resultados são exploratórios e não devem ser apresentados como validação definitiva.
 
 **Baseline atual verificada para regras (50 chamados):**
 
 | Métrica | Regras | Resultado |
 |---|---:|---:|
 | Intenção | 16/50 | 32% |
-| Urgência | 28/50 | 56% |
+| Urgência | 29/50 | 58% |
 
-`[Fonte: execução local de python -m src.main --avaliar data/chamados_validacao_independente.json --provider regras; 24 de novembro de 2026]`
+`[Fonte: saída local de python -m src.main --avaliar data/chamados_validacao_independente.json --provider regras; 27 de novembro de 2026: "Arquivo: chamados_validacao_independente.json | Provider: regras | Intenção: 16/50 (32%) | Urgência: 29/50 (58%)"]`
 
 A comparação com Gemini abaixo é histórica e cobre somente os 36 casos originais. Não foi repetida no conjunto ampliado; não há resultado Gemini verificado para 50 casos.
 
@@ -106,9 +106,9 @@ Histórico: na amostra de 16 chamados, Regras 3/16 (19%) e 10/16 (62%) contra Ge
 **O que a medição cobre:** apenas a triagem (intenção e urgência), que é o que `--avaliar` compara entre os adaptadores. O redator com LLM existe em `rascunho_com_llm` (`src/llm.py:560`) e é exposto via `processar_chamado` (`src/main.py:55`); o comando `demonstrar` (`src/main.py:70-72`) executa `processar` sobre a fila, e `rascunho_com_llm` não é o caminho do teste de demonstração, portanto não entra neste placar.
 
 ## Limites honestos desta versão
-- A amostra atual tem 50 casos sintéticos. V37–V50 passaram por simulação de revisão cega com dados fictícios; não houve avaliação por especialista humano, e a exigência de revisão especializada continua em aberto. Métricas em amostra sintética não são validação de produção.
+- A amostra atual tem 50 casos sintéticos. V37–V50 passaram por simulação de revisão cega com dados fictícios; dois gabaritos foram alterados por decisão da usuária (V39 e V45). Não houve avaliação por especialista humano, e a exigência de revisão especializada continua em aberto. Métricas em amostra sintética não são validação de produção.
 - As métricas Gemini de 72%/81% e 89%/75% são históricas, medidas somente nos 36 casos V01–V36. Não existe placar Gemini verificado para os 50 casos.
-- A baseline local medida na amostra ampliada é 16/50 (32%) em intenção e 28/50 (56%) em urgência. Não ajustamos regras em função do lote V37–V50.
+- A baseline local medida na amostra ampliada, após a revisão de V39 e V45, é 16/50 (32%) em intenção e 29/50 (58%) em urgência. Não ajustamos regras em função do lote V37–V50.
 - A origem exibida no painel vem do valor por item devolvido por `triagem_com_origem`/`rascunho_com_origem`. O contador agregado `CONTADOR_TRIAGEM` serve apenas ao `--avaliar` da CLI e não mistura sessões do Streamlit.
 - Transcrição de áudio segue como fase futura planejada em `docs/audio-transcricao-futura.md`; somente texto transcrito, revisão humana e máscara serão permitidos. Não inclui análise de emoção na voz.
 - Análise de prosódia/emoção continua fora do projeto por risco legal e baixa confiabilidade científica.
@@ -130,7 +130,7 @@ Histórico: na amostra de 16 chamados, Regras 3/16 (19%) e 10/16 (62%) contra Ge
 - `tests/test_tema_dxc.py` cobre paridade PT/EN de 201 chaves (9 blocos, 228 entradas-folha), CSS, SVG e troca de idioma; `tests/test_app_navegacao.py` cobre navegação e preservação de estado. Suíte total: **284 testes coletados** (`pytest --collect-only -q`).
 
 ## Próximos passos
-1. Revisar os rótulos V37–V50 com especialistas de service desk e congelar a versão do conjunto antes de qualquer ajuste de regras ou prompt.
+1. Revisar os rótulos V37–V50 com especialistas de service desk (a simulação cega já foi feita, com duas alterações registradas) e congelar a versão do conjunto antes de qualquer ajuste de regras ou prompt.
 2. Após revisão e autorização para chamadas externas, executar Gemini nos mesmos 50 casos e registrar modelo, data, origem e fallbacks; essa medição ainda não foi feita.
 3. Antes de apresentar métricas definitivas à DXC, ampliar para 100 casos com um lote de teste reservado, sem usá-lo para ajustar regras ou prompts.
 4. Antes de qualquer dado real, implementar autenticação/autorização no servidor, política de retenção e armazenamento protegido; o protótipo atual é simulado.
