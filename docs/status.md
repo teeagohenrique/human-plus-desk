@@ -6,9 +6,9 @@
 
 ## 📍 Estado atual
 
-Branch `main` alinhado com `origin/main` no commit `92bdb57`; as alterações desta rodada ainda não foram commitadas.
-Working tree com mudanças pendentes (`git status`); nenhum push foi feito.
-Suíte de testes: **274 passed**. Zero imports quebrados.
+Branch `main` alinhado com `origin/main` no commit `d5ad5ed`; alterações publicadas.
+Working tree limpo (`git status`); push concluído para `origin/main`.
+Suíte de testes: **274 passed** no CI (run `46036954983`, conclusão sucesso). Zero imports quebrados.
 Line endings: os arquivos editados estão em LF. Os avisos do Git sobre `LF will be replaced by CRLF` decorrem de `core.autocrlf=true` nesta máquina; o repositório não tem `.gitattributes`.
 
 ---
