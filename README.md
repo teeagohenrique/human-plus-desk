@@ -106,7 +106,7 @@ Histórico: na amostra de 16 chamados, Regras 3/16 (19%) e 10/16 (62%) contra Ge
 **O que a medição cobre:** apenas a triagem (intenção e urgência), que é o que `--avaliar` compara entre os adaptadores. O redator com LLM existe em `rascunho_com_llm` (`src/llm.py:560`) e é exposto via `processar_chamado` (`src/main.py:55`); o comando `demonstrar` (`src/main.py:70-72`) executa `processar` sobre a fila, e `rascunho_com_llm` não é o caminho do teste de demonstração, portanto não entra neste placar.
 
 ## Limites honestos desta versão
-- A amostra atual tem 50 casos sintéticos. V37–V50 ainda precisam de revisão especializada; métricas em amostra sintética não são validação de produção.
+- A amostra atual tem 50 casos sintéticos. V37–V50 passaram por simulação de revisão cega com dados fictícios; não houve avaliação por especialista humano, e a exigência de revisão especializada continua em aberto. Métricas em amostra sintética não são validação de produção.
 - As métricas Gemini de 72%/81% e 89%/75% são históricas, medidas somente nos 36 casos V01–V36. Não existe placar Gemini verificado para os 50 casos.
 - A baseline local medida na amostra ampliada é 16/50 (32%) em intenção e 28/50 (56%) em urgência. Não ajustamos regras em função do lote V37–V50.
 - A origem exibida no painel vem do valor por item devolvido por `triagem_com_origem`/`rascunho_com_origem`. O contador agregado `CONTADOR_TRIAGEM` serve apenas ao `--avaliar` da CLI e não mistura sessões do Streamlit.
