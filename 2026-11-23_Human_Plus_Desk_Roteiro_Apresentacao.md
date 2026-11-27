@@ -36,16 +36,16 @@ Documento de apoio para a demo. Não altera código, testes, prompts nem contrat
 **O que dizer:**
 > "Na visão de gestão do Rafael, fechamos o ciclo de auditoria. Usamos SQLite para persistência transacional — se eu atualizar a página agora, nada se perde — e mantemos uma trilha imutável. Mesmo se um chamado for reaberto, o histórico original da decisão permanece intacto para alimentar a matriz de calibração entre a IA e o time humano."
 
-**Evidência:** `src/repositorio.py:65` (`tickets`) e `:80` (`eventos`); `reabrir()` em `:189` preserva `resolvido_por`, `resolvido_em` e `resposta_final`, conforme o teste `test_reabrir_nao_apaga_auditoria`. O JSONL permanece como trilha analítica; `decisoes_vigentes()` em `src/painel.py:140` descarta a decisão substituída e a matriz considera só a vigente após a reabertura. Placar da nova medição instrumentada: 32/36 (89%) em intenção e 27/36 (75%) em urgência, com "Fallbacks: nenhum" (0 fallbacks). A medição final da suíte é de **278 testes coletados** (`pytest --collect-only -q`), atualizada em 27/11/2026.
+**Evidência:** `src/repositorio.py:65` (`tickets`) e `:80` (`eventos`); `reabrir()` em `:189` preserva `resolvido_por`, `resolvido_em` e `resposta_final`, conforme o teste `test_reabrir_nao_apaga_auditoria`. O JSONL permanece como trilha analítica; `decisoes_vigentes()` em `src/painel.py:140` descarta a decisão substituída e a matriz considera só a vigente após a reabertura. Placar da nova medição instrumentada: 32/36 (89%) em intenção e 27/36 (75%) em urgência, com "Fallbacks: nenhum" (0 fallbacks). A medição final da suíte é de **284 testes coletados** (`pytest --collect-only -q`), atualizada em 27/11/2026.
 
 ## Bloco 5 — Padrão Corporativo e Encerramento (3:30 – 4:00)
 
 **Ação na tela:** No topo direito, alterne o idioma de PT para EN e mude rapidamente entre Modo Claro e Escuro.
 
 **O que dizer:**
-> "Por fim, toda a camada visual foi inspirada na identidade da DXC, preparada para operações globais com suporte nativo a múltiplos idiomas, temas claro e escuro e uma base coberta por 278 testes automatizados garantindo estabilidade a cada evolução."
+> "Por fim, toda a camada visual foi inspirada na identidade da DXC, preparada para operações globais com suporte nativo a múltiplos idiomas, temas claro e escuro e uma base coberta por 284 testes automatizados garantindo estabilidade a cada evolução."
 
-**Evidência:** o seletor PT/EN fica em `st.columns([9.4, 1.6])` no topo da área principal e chama `render_language_selector()` (módulo `src/tema_dxc.py`); o tema Claro/Escuro é o `segmented_control` `tema_ui` na sidebar, que chama `render_dxc_theme()` e `render_dxc_logo()`. A identidade visual (CSS, SVG) foi isolada em `src/tema_dxc.py` sem duplicação; as 201 chaves de topo e 228 entradas-folha por idioma ficam em `src/textos.py`. Suíte validada: **278 testes coletados** (`pytest --collect-only -q`).
+**Evidência:** o seletor PT/EN fica em `st.columns([9.4, 1.6])` no topo da área principal e chama `render_language_selector()` (módulo `src/tema_dxc.py`); o tema Claro/Escuro é o `segmented_control` `tema_ui` na sidebar, que chama `render_dxc_theme()` e `render_dxc_logo()`. A identidade visual (CSS, SVG) foi isolada em `src/tema_dxc.py` sem duplicação; as 201 chaves de topo e 228 entradas-folha por idioma ficam em `src/textos.py`. Suíte validada: **284 testes coletados** (`pytest --collect-only -q`).
 
 ## Ajustes aplicados ao texto sugerido
 

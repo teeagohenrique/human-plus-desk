@@ -8,7 +8,8 @@
 
 Branch `main` alinhado com `origin/main`; alterações publicadas.
 Working tree limpo (`git status`); push concluído para `origin/main`.
-Suíte de testes: **278 passed**. Mypy limpo em 21 arquivos; o step de tipos agora bloqueia o CI. Zero imports quebrados.
+Suíte de testes: **284 passed**. Mypy limpo em 22 arquivos; o step de tipos agora bloqueia o CI. Zero imports quebrados.
+Validação de evidências: `src/llm.py:263` compara trechos apenas com o texto mascarado; `src/mascara.py:53` não carrega o texto bruto. `src/seguranca.py:25` recusa `SUPPORT_ALLOW_ALL` em produção e `src/seguranca.py:74` implementa retenção configurável, com testes em `tests/test_seguranca.py`.
 NER no CI: `src/ner_local.py:23` exige `pt_core_news_sm`; `requirements.txt:11-12` só documenta o download manual e `Dockerfile:19` instala no contêiner. O workflow passa a instalar o modelo antes dos testes (`.github/workflows/ci.yml:34-35`), sem depender do download automático do Presidio.
 Line endings: os arquivos editados estão em LF. Os avisos do Git sobre `LF will be replaced by CRLF` decorrem de `core.autocrlf=true` nesta máquina; o repositório não tem `.gitattributes`.
 
@@ -20,8 +21,8 @@ Line endings: os arquivos editados estão em LF. Os avisos do Git sobre `LF will
 |---|---|---|
 | **1 — Diagnóstico** | Mapeamento da stack, dependências desatualizadas, variáveis de ambiente, estrutura de pastas e fluxo atual. | Levantamento completo (`src/`, `tests/`, `data/`, `.github/`, `docs/`) e pontos de dor identificados. |
 | **2 — Plano de refactor** | Definição da arquitetura (camadas separadas, contratos e testes), padrões de migração e checklist de qualidade. | Plano de execução com prioridade SOLID, validação robusta e cobertura de testes. |
-| **3 — Núcleo/Core** | Refatoração dos módulos de negócio com SOLID, tipagem forte, logs estruturados, tratamento robusto de erros e validação rigorosa de entradas (`src/painel.py`, `src/triagem.py`, `src/redator.py`, `src/llm.py`, `src/auditoria.py`, `src/repositorio.py`, etc.). | Remoção de código morto e duplicado. **278 testes passando** (cobertura média 91%). Zero imports quebrados. |
-| **4 — Utilitários e Testes** | Limpeza de funções duplicadas, manutenção de 278 testes, verificação de imports, dependências e `.env.example`. | Remoção de `decisao_por_texto` (redundante com `classificar_resposta`). Suíte completa verde. Build OK. `pip install -e .` ok. |
+| **3 — Núcleo/Core** | Refatoração dos módulos de negócio com SOLID, tipagem forte, logs estruturados, tratamento robusto de erros e validação rigorosa de entradas (`src/painel.py`, `src/triagem.py`, `src/redator.py`, `src/llm.py`, `src/auditoria.py`, `src/repositorio.py`, etc.). | Remoção de código morto e duplicado. **284 testes passando** (cobertura média 91%). Zero imports quebrados. |
+| **4 — Utilitários e Testes** | Limpeza de funções duplicadas, manutenção de 284 testes, verificação de imports, dependências e `.env.example`. | Remoção de `decisao_por_texto` (redundante com `classificar_resposta`). Suíte completa verde. Build OK. `pip install -e .` ok. |
 
 ---
 

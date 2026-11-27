@@ -264,9 +264,9 @@ def validar_trechos(trechos: list[str], texto_mascarado: str) -> tuple[bool, lis
     """Confere se cada trecho é evidência LITERAL presente em `texto_mascarado`.
 
     Normaliza apenas espaços consecutivos, preservando capitalização exata e
-    fronteira de palavra (ex.: 'cai' não casa dentro de 'caiu').
-    Compara contra o texto já mascarado para barrar tanto citações inventadas
-    quanto trechos que vazem dados pessoais removidos pela máscara.
+    fronteira de palavra (ex.: 'cai' não casa dentro de 'caiu'). Compara
+    exclusivamente contra o texto já mascarado, para barrar citações inventadas
+    e trechos que vazem dados pessoais removidos pela máscara.
     """
     base = _normalizar_espacos(texto_mascarado)
     invalidos: list[str] = []
@@ -344,7 +344,11 @@ def _modelo_gemini(model: str | None = None) -> str:
     return escolhido
 
 
-def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativas: int = 2) -> tuple[Triagem, str]:
+def _triagem_gemini(
+    texto_mascarado: str,
+    model: str | None = None,
+    max_tentativas: int = 2,
+) -> tuple[Triagem, str]:
     try:
         from google.genai import types
     except ImportError:
@@ -362,13 +366,59 @@ def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativ
         _registrar_fallback("cliente_indisponivel")
         return _triagem_regras_validada(texto_mascarado, "fallback")[0], "fallback"
     prompt_base = (
-        "Classifique o chamado de service desk abaixo em português.\n"
-        "Regras obrigatórias:\n"
-        "1. Todo motivo em `motivos_intencao` e `motivos_urgencia` deve trazer um `trecho` "
-        "LITERAL copiado exatamente do texto mascarado (mesma grafia e capitalização).\n"
-        "2. Nunca invente trechos nem reconstrua dados mascarados.\n"
-        "3. Se não houver evidência literal para urgência acima de baixa, use urgencia='baixa'.\n\n"
-        f"Chamado mascarado:\n{texto_mascarado}"
+        "Você é um classificador de chamados de service desk. Sua tarefa é analisar "
+        "o chamado abaixo e extrair intenção, urgência e motivos.\n\n"
+        "### Formato de saída (JSON estrito, sem texto fora do JSON)\n"
+        "```json\n"
+        "{\n"
+        "  \"intencao\": \"<falha_sistema | acesso | reclamacao | solicitacao | duvida | indefinida>\",\n"
+        "  \"urgencia\": \"<baixa | media | alta>\",\n"
+        "  \"recorrente\": <true | false>,\n"
+        "  \"motivos_intencao\": [\n"
+        "    {\"sinal\": \"<palavra_chave | prazo | recorrencia | ...>\", \"trecho\": \"<trecho literal do texto MASCARADO>\"},\n"
+        "    ...\n"
+        "  ],\n"
+        "  \"motivos_urgencia\": [\n"
+        "    {\"sinal\": \"<palavra_chave | ...>\", \"trecho\": \"<trecho literal do texto MASCARADO>\"},\n"
+        "    ...\n"
+        "  ],\n"
+        "  \"pontuacao_urgencia\": <0-100>,\n"
+        "  \"confianca\": \"<baixa | media | alta>\"\n"
+        "}\n```\n\n"
+        "### Regras obrigatórias\n"
+        "1. `trecho` deve ser um trecho LITERAL copiado exatamente do texto mascarado "
+        "(mesma grafia, capitalização e pontuação). Use a forma MASCARADA (ex.: [NOME] "
+        "para nomes, [EMAIL] para e-mails, [TELEFONE] para telefones).\n"
+        "2. Nunca invente trechos, nunca reconstrua dados mascarados e nunca altere "
+        "capitalização ou pontuação do trecho original.\n"
+        "3. `urgencia` só pode ser `media` ou `alta` se existir pelo menos um trecho "
+        "em `motivos_urgencia` com evidência clara. Caso contrário, use `baixa`.\n"
+        "4. `intencao` deve ser `indefinida` apenas se não houver nenhum trecho em "
+        "`motivos_intencao`.\n"
+        "5. `motivos_intencao` e `motivos_urgencia` devem conter os trechos que "
+        "JUSTIFICAM a intenção/urgência escolhida. Se a intenção for `indefinida`, "
+        "`motivos_intencao` pode estar vazio.\n"
+        "6. `pontuacao_urgencia` deve ser um inteiro de 0 a 100 baseado na urgência "
+        "real do chamado.\n"
+        "7. `confianca` deve refletir a certeza na classificação: `alta` se os "
+        "trechos forem claros, `baixa` se houver dúvida.\n\n"
+        "### Exemplo de entrada e saída correta\n"
+        "Entrada (mascarada): \"Olá, meu e-mail é [EMAIL] e telefone [TELEFONE]. Meu "
+        "nome é [NOME]. Preciso acessar o sistema \"X\" para resolver um problema.\"\n"
+        "Saída:\n"
+        "```json\n"
+        "{\n"
+        "  \"intencao\": \"acesso\",\n"
+        "  \"urgencia\": \"baixa\",\n"
+        "  \"recorrente\": false,\n"
+        "  \"motivos_intencao\": [\n"
+        "    {\"sinal\": \"palavra_chave\", \"trecho\": \"Preciso acessar o sistema\"}\n"
+        "  ],\n"
+        "  \"motivos_urgencia\": [],\n"
+        "  \"pontuacao_urgencia\": 20,\n"
+        "  \"confianca\": \"alta\"\n"
+        "}\n```\n\n"
+        f"Chamado mascarado a classificar:\n{texto_mascarado}"
     )
 
     feedback = ""
@@ -536,7 +586,12 @@ def triagem_com_llm(
     ner_disponivel: bool = False,
 ) -> Triagem:
     """Compatibilidade: devolve só a triagem, sem a origem."""
-    return triagem_com_origem(texto_mascarado, provider=provider, model=model, ner_disponivel=ner_disponivel)[0]
+    return triagem_com_origem(
+        texto_mascarado,
+        provider=provider,
+        model=model,
+        ner_disponivel=ner_disponivel,
+    )[0]
 
 
 def rascunho_com_origem(

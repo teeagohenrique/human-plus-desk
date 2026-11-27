@@ -93,3 +93,10 @@ def test_ner_nao_transforma_verbos_e_saudacoes_em_nome():
     r = mascarar("Favor verificar o chamado do Sr. João Pereira.")
     assert "Favor" in r.texto
     assert "João Pereira" not in r.texto
+
+
+def test_resultado_mascara_nao_carrega_texto_bruto():
+    r = mascarar("CPF 123.456.789-09 e e-mail ana@empresa.com.br")
+    serializado = r.model_dump_json()
+    assert "123.456.789-09" not in serializado
+    assert "ana@empresa.com.br" not in serializado

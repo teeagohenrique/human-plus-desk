@@ -44,6 +44,36 @@ def test_pipeline_impede_chamada_externa_se_ner_falhar(monkeypatch):
     assert resultado.origem_rascunho == "fallback"
 
 
+def test_pipeline_repassa_sinal_ner_para_triagem(monkeypatch):
+    from src import llm
+    from src.mascara import ResultadoMascara
+    from src.triagem import triar
+
+    vistos = []
+
+    def triagem_falsa(texto, provider=None, model=None, ner_disponivel=False):
+        vistos.append(ner_disponivel)
+        return triar("sistema travou"), "regras"
+
+    def rascunho_falso(texto, triagem, palpites=None, leitura=None, provider=None, model=None, ner_disponivel=False):
+        return llm.gerar_rascunho(texto, triagem, palpites=palpites, leitura=leitura), "regras"
+
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy-test-key")
+    monkeypatch.setenv("GEMINI_MODEL", "dummy-model")
+    monkeypatch.setattr(
+        pipeline, "mascarar",
+        lambda texto: ResultadoMascara(
+            texto="sistema travou", tipos_encontrados=[], ner_disponivel=True
+        ),
+    )
+    monkeypatch.setattr(llm, "triagem_com_origem", triagem_falsa)
+    monkeypatch.setattr(llm, "rascunho_com_origem", rascunho_falso)
+
+    pipeline.processar_chamado(TEXTO, provider="gemini")
+
+    assert vistos == [True]
+
+
 def test_processar_chamado_repassa_historico_a_percepcao(monkeypatch):
     vistos = []
 

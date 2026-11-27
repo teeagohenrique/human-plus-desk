@@ -11,9 +11,12 @@ Camadas aplicadas nesta ordem, sempre offline:
 NÃO valida os dígitos verificadores do CPF/CNPJ: mascara por formato (prefere
 mascarar demais a vazar).
 """
+import logging
 import re
 
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 # A ordem importa: CNPJ (14 dígitos) antes de CPF (11), e CPF antes de telefone.
 PADROES = [
@@ -80,12 +83,33 @@ def _nomes_por_ner(texto: str) -> tuple[list[tuple[int, int]], bool]:
 
 
 def mascarar(texto: str) -> ResultadoMascara:
+    """Mascara um chamado, aplicando todas as camadas offline.
+
+    O texto de entrada pode conter dados pessoais; apenas o texto mascarado e
+    os tipos encontrados devem circular pelos adaptadores e pela auditoria.
+
+    Raises:
+        ValueError: se o texto for vazio ou não for uma string.
+    """
+    if not texto or not isinstance(texto, str):
+        raise ValueError("texto deve ser uma string não vazia")
+
+    if len(texto.strip()) < 3:
+        logger.warning("mascarar: texto muito curto (%d chars)", len(texto))
+        return ResultadoMascara(
+            texto=texto.strip(),
+            tipos_encontrados=[],
+            ner_disponivel=False,
+        )
+
     encontrados: list[str] = []
     for tipo, padrao in PADROES:
         texto, n = padrao.subn(f"[{tipo}]", texto)
         encontrados.extend([tipo] * n)
+
     texto, n_nomes = _mascarar_nomes(texto)
     encontrados.extend(["NOME"] * n_nomes)
+
     spans, ner_ok = _nomes_por_ner(texto)
     for inicio, fim in reversed(spans):
         trecho = texto[inicio:fim]
@@ -93,4 +117,9 @@ def mascarar(texto: str) -> ResultadoMascara:
             continue
         texto = texto[:inicio] + "[NOME]" + texto[fim:]
         encontrados.append("NOME")
-    return ResultadoMascara(texto=texto, tipos_encontrados=encontrados, ner_disponivel=ner_ok)
+
+    return ResultadoMascara(
+        texto=texto,
+        tipos_encontrados=encontrados,
+        ner_disponivel=ner_ok,
+    )

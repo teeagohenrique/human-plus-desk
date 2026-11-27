@@ -94,7 +94,11 @@ def avaliar(caminho: Path = DADOS, provider: str | None = None) -> dict:
         chamados = carregar(caminho)
         for c in chamados:
             m = mascarar(c["texto"])
-            t = triagem_com_llm(m.texto, provider=provider, ner_disponivel=m.ner_disponivel)
+            t = triagem_com_llm(
+                m.texto,
+                provider=provider,
+                ner_disponivel=m.ner_disponivel,
+            )
             g = c["gabarito"]
             ok_i, ok_u = t.intencao == g["intencao"], t.urgencia == g["urgencia"]
             acertos_i += ok_i
