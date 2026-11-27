@@ -31,3 +31,10 @@ def test_estado_ner_indica_indisponibilidade_do_modelo():
 
     with patch("src.ner_local._analisador", side_effect=RuntimeError("modelo ausente")):
         assert ner_disponivel() is False
+
+
+def test_estado_ner_indica_disponibilidade_do_modelo():
+    from src.ner_local import ner_disponivel
+
+    with patch("src.ner_local._analisador", return_value=object()):
+        assert ner_disponivel() is True

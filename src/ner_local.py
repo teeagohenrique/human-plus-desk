@@ -80,7 +80,13 @@ def _analisador() -> AnalyzerEngine:
 
 
 def ner_disponivel() -> bool:
-    """Indica se a engine local foi carregada com sucesso, sem propagar falhas."""
+    """Indica se a engine local foi carregada com sucesso, sem propagar falhas.
+
+    Shim: a camada de produção decide o uso do NER por parâmetro
+    ``ner_disponivel: bool`` de ``triagem_com_origem``/``rascunho_com_llm``;
+    esta função serve para *testes* e para *uso futuro* quando algo precisa
+    validar disponibilidade antes de apelar pela camada local.
+    """
     try:
         _analisador()
     except Exception:

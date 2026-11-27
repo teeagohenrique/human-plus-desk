@@ -6,9 +6,9 @@
 
 ## 📍 Estado atual
 
-Branch `main` alinhado com `origin/main` no commit `d5ad5ed`; alterações publicadas.
+Branch `main` alinhado com `origin/main`; alterações publicadas.
 Working tree limpo (`git status`); push concluído para `origin/main`.
-Suíte de testes: **274 passed** no CI (run `46036954983`, conclusão sucesso). Zero imports quebrados.
+Suíte de testes: **275 passed**. Zero imports quebrados.
 Line endings: os arquivos editados estão em LF. Os avisos do Git sobre `LF will be replaced by CRLF` decorrem de `core.autocrlf=true` nesta máquina; o repositório não tem `.gitattributes`.
 
 ---
@@ -19,8 +19,8 @@ Line endings: os arquivos editados estão em LF. Os avisos do Git sobre `LF will
 |---|---|---|
 | **1 — Diagnóstico** | Mapeamento da stack, dependências desatualizadas, variáveis de ambiente, estrutura de pastas e fluxo atual. | Levantamento completo (`src/`, `tests/`, `data/`, `.github/`, `docs/`) e pontos de dor identificados. |
 | **2 — Plano de refactor** | Definição da arquitetura (camadas separadas, contratos e testes), padrões de migração e checklist de qualidade. | Plano de execução com prioridade SOLID, validação robusta e cobertura de testes. |
-| **3 — Núcleo/Core** | Refatoração dos módulos de negócio com SOLID, tipagem forte, logs estruturados, tratamento robusto de erros e validação rigorosa de entradas (`src/painel.py`, `src/triagem.py`, `src/redator.py`, `src/llm.py`, `src/auditoria.py`, `src/repositorio.py`, etc.). | Remoção de código morto e duplicado. **274 testes passando** (cobertura média 91%). Zero imports quebrados. |
-| **4 — Utilitários e Testes** | Limpeza de funções duplicadas, manutenção de 274 testes, verificação de imports, dependências e `.env.example`. | Remoção de `decisao_por_texto` (redundante com `classificar_resposta`). Suíte completa verde. Build OK. `pip install -e .` ok. |
+| **3 — Núcleo/Core** | Refatoração dos módulos de negócio com SOLID, tipagem forte, logs estruturados, tratamento robusto de erros e validação rigorosa de entradas (`src/painel.py`, `src/triagem.py`, `src/redator.py`, `src/llm.py`, `src/auditoria.py`, `src/repositorio.py`, etc.). | Remoção de código morto e duplicado. **275 testes passando** (cobertura média 91%). Zero imports quebrados. |
+| **4 — Utilitários e Testes** | Limpeza de funções duplicadas, manutenção de 275 testes, verificação de imports, dependências e `.env.example`. | Remoção de `decisao_por_texto` (redundante com `classificar_resposta`). Suíte completa verde. Build OK. `pip install -e .` ok. |
 
 ---
 
