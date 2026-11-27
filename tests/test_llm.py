@@ -135,6 +135,27 @@ def test_fallback_por_mascara_incompleta_valida_trechos(monkeypatch):
         triagem_com_origem(CHAMADO, provider="gemini", ner_disponivel=False)
 
 
+def test_triagem_regras_nao_rejeita_palavra_completa_com_terminacao(monkeypatch):
+    """Registra regressão: 'acessos travaram' extraía 'acesso' e validação recusava.
+    Após a correção da regex, o trecho deve ser 'acessos' e a triagem deve subir.
+    Precisa de GEMINI_API_KEY por causa de _triagem_gemini (já mockada) e
+    ner_disponivel=True para evitar a confusão do NER local."""
+    from src.llm import usar_contadores
+
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy-test-key")
+    monkeypatch.setenv("GEMINI_MODEL", "dummy-model")
+    monkeypatch.setattr(llm, "_triagem_gemini", lambda *args, **kwargs: pytest.fail("não deve enviar ao Gemini"))
+
+    with usar_contadores():
+        triagem, origem = triagem_com_origem("acessos travaram", provider="regras", ner_disponivel=True)
+
+    assert triagem is not None
+    assert origem == "regras"
+    assert any(m.trecho == "acessos" for m in triagem.motivos_intencao), (
+        f"trecho esperado 'acessos', encontrado: {[m.trecho for m in triagem.motivos_intencao]}"
+    )
+
+
 def test_validar_trechos_aceita_evidencia_literal_com_espacos_normalizados():
     texto = "O sistema   de faturamento\ntravou pela terceira vez."
     ok, invalidos = validar_trechos(["sistema de faturamento travou", "terceira vez"], texto)

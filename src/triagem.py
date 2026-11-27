@@ -80,7 +80,7 @@ class Triagem(BaseModel):
 def _achar_palavras(texto: str, palavras: list[str]) -> list[Motivo]:
     achados = []
     for p in palavras:
-        m = re.search(rf"\b{re.escape(p)}", texto, re.IGNORECASE)
+        m = re.search(rf"\b{re.escape(p)}\w*", texto, re.IGNORECASE)
         if m:
             achados.append(Motivo(sinal="palavra_chave", trecho=m.group(0)))
     return achados

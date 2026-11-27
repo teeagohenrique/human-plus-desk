@@ -354,18 +354,18 @@ def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativ
         from google.genai import types
     except ImportError:
         _registrar_fallback("sdk_indisponivel")
-        return triar(texto_mascarado), "fallback"
+        return _triagem_regras_validada(texto_mascarado, "fallback")[0], "fallback"
 
     try:
         modelo = _modelo_gemini(model)
     except ValueError:
         _registrar_fallback("configuracao_invalida")
-        return triar(texto_mascarado), "fallback"
+        return _triagem_regras_validada(texto_mascarado, "fallback")[0], "fallback"
     try:
         client = _cliente_gemini()
     except Exception:
         _registrar_fallback("cliente_indisponivel")
-        return triar(texto_mascarado), "fallback"
+        return _triagem_regras_validada(texto_mascarado, "fallback")[0], "fallback"
     prompt_base = (
         "Classifique o chamado de service desk abaixo em português.\n"
         "Regras obrigatórias:\n"
@@ -422,7 +422,7 @@ def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativ
             modelo,
             motivo_falha,
         )
-    return triar(texto_mascarado), "fallback"
+    return _triagem_regras_validada(texto_mascarado, "fallback")[0], "fallback"
 
 
 def _rascunho_gemini(

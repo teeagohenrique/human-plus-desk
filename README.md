@@ -8,7 +8,16 @@ Assistente de service desk em Python que ajuda a analista a priorizar chamados e
 - **Governança antes de IA:** CPF, CNPJ, e-mail, telefone e nomes próprios são mascarados antes do processamento. Padrões fixos, heurísticas e NER local rodam offline; se o NER falhar e Gemini estiver selecionado, o texto não é enviado e o fluxo cai para regras (`src/mascara.py`, `src/ner_local.py`, `src/pipeline.py`).
 - **Humano no controle:** urgência sem pré-seleção, `[colchetes]` obrigatórios no rascunho e decisão 100% humana na tela (`src/ui_marina.py`, `app.py`).
 - **Resiliência observável:** regras offline e Gemini atrás da mesma interface; origem efetiva exibida por chamado e motivos de fallback contados na CLI (`src/llm.py`, `app.py`).
-- **Engenharia verificada:** 250 testes coletados (`pytest --collect-only -q`), incluindo `AppTest`, regressões de máscara/NER, outbox, estimativas por horário comercial, simulação de passos/prazo do Acervo e conteúdo bilíngue; Ruff e `compileall` limpos. CI executa Ruff, compilação e pytest em cada push/PR (GitHub Actions).
+- **Engenharia verificada:** 264 testes coletados (`pytest --collect-only -q`), incluindo `AppTest`, regressões de máscara/NER, outbox, estimativas por horário comercial, simulação de passos/prazo do Acervo e conteúdo bilíngue; Ruff e `compileall` limpos. CI executa Ruff, compilação e pytest em cada push/PR (GitHub Actions).
+
+## Estado do projeto — Etapas concluídas (27/11/2026)
+
+| Etapa | Método | Resultado |
+|---|---|---|
+| **1 — Diagnóstico** | Mapeamento da stack, dependências desatualizadas, variáveis de ambiente, estrutura de pastas e fluxo atual. | Levantamento completo (`src/`, `tests/`, `data/`, `.github/`, `docs/`) e pontos de dor identificados. |
+| **2 — Plano de refactor** | Definição da arquitetura (camadas separadas, contratos e testes), padrões de migração e checklist de qualidade. | Plano de execução com prioridade SOLID, validação robusta e cobertura de testes. |
+| **3 — Núcleo/Core** | Refatoração dos módulos de negócio com SOLID, tipagem forte, logs estruturados, tratamento robusto de erros e validação rigorosa de entradas (`src/painel.py`, `src/triagem.py`, `src/redator.py`, `src/llm.py`, `src/auditoria.py`, `src/repositorio.py`, etc.). | Remoção de código morto e duplicado. **264 testes passando** (cobertura média 91%). Zero imports quebrados. |
+| **4 — Utilitários e Testes** | Limpeza de funções duplicadas, manutenção de 264 testes, verificação de imports, dependências e `.env.example`. | Remoção de `decisao_por_texto` (redundante com `classificar_resposta`). Suíte completa verde. Build OK. `pip install -e .` ok. |
 
 ## O problema
 A analista abre dezenas de chamados sem saber qual é mais urgente e escreve respostas sob pressão, com risco de prometer prazos que não pode cumprir.
@@ -118,7 +127,7 @@ Histórico: na amostra de 16 chamados, Regras 3/16 (19%) e 10/16 (62%) contra Ge
 - `app.py` importa `I18N`, `render_dxc_theme`, `render_dxc_logo` e `render_language_selector` de `src/tema_dxc.py`; não mantém cópia local de CSS, SVG ou traduções. `get_text` fica disponível no módulo para rótulos pontuais sem duplicar o dicionário.
 - O seletor PT/EN fica no topo da área principal; o tema Claro/Escuro fica na barra lateral (`tema_ui`). As chaves de widgets usadas pela agent API (`urg_ui_C15`, callbacks e filtros) não mudaram.
 - O módulo de tema não lê segredos: a configuração continua restrita a `GEMINI_API_KEY` e `GEMINI_MODEL` em `.env` (`src/config.py`). Use `.env.example` como referência; valores iguais a `sua_chave_aqui` são ignorados (`src/config.py :: carregar_env`).
-- `tests/test_tema_dxc.py` cobre paridade PT/EN de 201 chaves (9 blocos, 228 entradas-folha), CSS, SVG e troca de idioma; `tests/test_app_navegacao.py` cobre navegação e preservação de estado. Suíte total: **250 testes coletados** (`pytest --collect-only -q`).
+- `tests/test_tema_dxc.py` cobre paridade PT/EN de 201 chaves (9 blocos, 228 entradas-folha), CSS, SVG e troca de idioma; `tests/test_app_navegacao.py` cobre navegação e preservação de estado. Suíte total: **264 testes coletados** (`pytest --collect-only -q`).
 
 ## Próximos passos
 1. Revisar os rótulos V37–V50 com especialistas de service desk e congelar a versão do conjunto antes de qualquer ajuste de regras ou prompt.
