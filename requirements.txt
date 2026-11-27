@@ -1,19 +1,12 @@
-# Em uso (Partes 1 a 3: texto, regras e painel)
-pydantic>=2.0
-pandas
-streamlit>=1.40
-altair>=5.0  # gráficos da tela do Rafael (src/ui_rafael.py)
-pytest>=8.0
-google-genai>=3.6
-presidio-analyzer>=2.2
-spacy>=3.8,<3.9
-# O modelo PT do NER local NAO esta no PyPI. Instalar com:
+# Runtime (produção) - versões pinadas para reprodutibilidade e segurança.
+# Atualização segura: revisar versões + `pip-audit` no CI; nunca levantar versões abertas.
+pydantic==2.14.4
+pandas==3.1.1
+streamlit==1.67.0
+altair==6.3.0
+google-genai==3.6.1
+presidio-analyzer==2.2.366
+spacy==3.8.18
+
+# NER local (PT) - modelo não está no PyPI; descompactar manualmente:
 #   python -m spacy download pt_core_news_sm
-
-# Desenvolvimento (lint e cobertura — nao necessarios para rodar a aplicacao)
-ruff>=0.17
-pytest-cov>=7.0
-
-# Próximas partes (ainda NÃO usadas no código):
-# crewai            # orquestração dos agentes (Percepção/Redator com LLM)
-# openai-whisper    # transcrição de áudio (áudio entra só como canal)

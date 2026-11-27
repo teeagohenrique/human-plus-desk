@@ -2,8 +2,11 @@
 
 Só texto já mascarado entra aqui. Cada linha é um evento; nada é apagado.
 """
+from __future__ import annotations
+
 import json
 import logging
+import os
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
@@ -15,6 +18,14 @@ logger = logging.getLogger(__name__)
 _TRAVA_JSONL = threading.Lock()
 
 Decisao = Literal["pendente", "aprovou", "editou", "rejeitou"]
+
+
+def _anexar_linha(caminho: Path, linha: str) -> None:
+    """Uma única escrita, com flush/fsync antes de liberar a trava do JSONL."""
+    with caminho.open("a", encoding="utf-8") as arquivo:
+        arquivo.write(linha)
+        arquivo.flush()
+        os.fsync(arquivo.fileno())
 
 
 class Evento(BaseModel):
@@ -47,10 +58,17 @@ def registrar(caminho: Path, chamado_id: str, agente: str, saida: dict,
         "decisao_analista": decisao,
         "texto_final": texto_final,
     }
+    logger.info(
+        "auditoria: registrar chamado=%s agente=%s saida=%d decisao=%s",
+        chamado_id,
+        agente,
+        len(saida),
+        decisao,
+    )
     caminho = Path(caminho)
-    caminho.parent.mkdir(parents=True, exist_ok=True)
-    with caminho.open("a", encoding="utf-8") as f:  # modo "a": só acrescenta
-        f.write(json.dumps(evento, ensure_ascii=False) + "\n")
+    with _TRAVA_JSONL:
+        caminho.parent.mkdir(parents=True, exist_ok=True)
+        _anexar_linha(caminho, json.dumps(evento, ensure_ascii=False) + "\n")
 
 
 def registrar_payload(caminho: Path, evento: dict) -> bool:
@@ -70,8 +88,11 @@ def registrar_payload(caminho: Path, evento: dict) -> bool:
                     if isinstance(existente, dict) and existente.get("evento_db_id") == evento_id:
                         return False
         caminho.parent.mkdir(parents=True, exist_ok=True)
-        with caminho.open("a", encoding="utf-8") as arquivo:
-            arquivo.write(json.dumps(evento, ensure_ascii=False) + "\n")
+        _anexar_linha(caminho, json.dumps(evento, ensure_ascii=False) + "\n")
+    logger.info(
+        "auditoria: exportado evento_db_id=%s",
+        evento.get("evento_db_id"),
+    )
     return True
 
 

@@ -107,3 +107,34 @@ def test_formatar_sugestao_acervo_substitui_solucao_provisoria_e_mantem_prazo_e_
     respondido = texto.replace(PEND_PRAZO, "às 16h30 de hoje")
     assert pendencias_abertas(respondido) == []
 
+
+def test_sugestao_acervo_aprovada_pelo_guardrail():
+    m = mascarar(CARLOS)
+    sugestao = formatar_sugestao_acervo(
+        triar(m.texto), "revisar as configurações de acesso", chamado_mascarado=m.texto
+    )
+
+    assert sugestao.passou_guardrail, sugestao.feedback_guardrail
+    assert sugestao.feedback_guardrail == ""
+    assert isinstance(sugestao, str)
+
+
+def test_sugestao_acervo_reprovada_por_prazo_inventado():
+    m = mascarar(CARLOS)
+    sugestao = formatar_sugestao_acervo(
+        triar(m.texto), "retorno garantido até amanhã", chamado_mascarado=m.texto
+    )
+
+    assert not sugestao.passou_guardrail
+    assert "prazo" in sugestao.feedback_guardrail.lower()
+
+
+def test_sugestao_acervo_reprovada_por_numero_inventado():
+    m = mascarar(CARLOS)
+    sugestao = formatar_sugestao_acervo(
+        triar(m.texto), "reiniciar o módulo 7 vezes", chamado_mascarado=m.texto
+    )
+
+    assert not sugestao.passou_guardrail
+    assert "Números" in sugestao.feedback_guardrail
+

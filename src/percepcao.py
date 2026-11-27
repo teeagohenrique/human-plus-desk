@@ -9,6 +9,8 @@ Regras de ouro:
 - Fala do TEXTO e do HISTÓRICO, nunca da pessoa (sem rótulos).
 - Não muda a urgência da triagem: apenas SUGERE subir (`sugere_subir_urgencia`).
 """
+from __future__ import annotations
+
 from typing import Literal
 
 from pydantic import BaseModel, Field

@@ -2,13 +2,14 @@
 
 OARS (adaptado de Miller & Rollnick, entrevista motivacional; a adaptação ao
 service desk é decisão deste projeto): pergunta aberta, afirmação, reflexão, resumo.
-
 Guardrail (função `validar_rascunho`): bloqueia
   1. prazo/compromisso prometido pela IA (a analista preenche);
   2. rótulo sobre a pessoa ("você está nervoso");
   3. números/fatos que não estão no chamado;
   4. dado pessoal sem máscara.
 """
+from __future__ import annotations
+
 import re
 
 from pydantic import BaseModel
@@ -216,5 +217,5 @@ def formatar_sugestao_acervo(
         )
     resultado = Sugestao(texto)
     resultado.passou_guardrail = ok
-    resultado.feedback_guardrail = feedback
+    resultado.feedback_guardrail = "" if ok else feedback
     return resultado

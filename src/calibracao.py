@@ -11,6 +11,8 @@ Regras (valores iniciais, a ajustar com a equipe; não vêm de pesquisa):
   mais de LIMIAR_LIVRE dos casos (sinal de que a lista não cobre a realidade).
 - A redução só vale depois que o GESTOR aprova (`aprovar_reducao`), e fica na auditoria.
 """
+from __future__ import annotations
+
 import json
 from pathlib import Path
 

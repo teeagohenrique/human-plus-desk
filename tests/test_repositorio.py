@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -98,6 +99,79 @@ def test_decisao_outbox_exporta_jsonl_idempotente(tmp_path):
     assert len(registros) == 1
     assert registros[0]["evento_db_id"] == 1
     assert registros[0]["decisao_analista"] == "editou"
+    assert repositorio.eventos(caminho_db, "C01")[-1]["jsonl_exportado"] == 1
+
+
+@pytest.mark.parametrize("payload", [
+    {},
+    {"agente": "analista"},
+    {"agente": "analista", "saida": {}},
+])
+def test_payload_incompleto_nao_fica_pendente(db, payload):
+    with pytest.raises(ValueError, match="payload_auditoria incompleto"):
+        repositorio.registrar_decisao(
+            "C01", "aprovou", "OK", "Marina", payload_auditoria=payload, caminho=db
+        )
+    assert repositorio.eventos(db, "C01") == []
+
+
+def test_exportacao_recupera_de_falha_entre_jsonl_e_flag(tmp_path, monkeypatch):
+    from src import auditoria
+
+    caminho_db = tmp_path / "outbox.db"
+    caminho_log = tmp_path / "audit.jsonl"
+    repositorio.init_db(caminho_db)
+    repositorio.registrar_decisao(
+        "C01", "editou", "Resposta", "Marina",
+        payload_auditoria={
+            "agente": "analista",
+            "saida": {"urgencia": "media", "intencao": "acesso"},
+            "decisao_analista": "editou",
+            "texto_final": "Resposta",
+        },
+        caminho=caminho_db,
+    )
+    original = auditoria.registrar_payload
+
+    def falha_depois_de_escrever(caminho, evento):
+        original(caminho, evento)
+        raise OSError("falha simulada antes do UPDATE")
+
+    monkeypatch.setattr(auditoria, "registrar_payload", falha_depois_de_escrever)
+    assert repositorio.exportar_auditoria_pendente(caminho_log, caminho_db) == 0
+    assert repositorio.eventos(caminho_db, "C01")[-1]["jsonl_exportado"] == 0
+
+    monkeypatch.setattr(auditoria, "registrar_payload", original)
+    assert repositorio.exportar_auditoria_pendente(caminho_log, caminho_db) == 0
+    assert repositorio.eventos(caminho_db, "C01")[-1]["jsonl_exportado"] == 1
+    registros = [json.loads(linha) for linha in caminho_log.read_text(encoding="utf-8").splitlines()]
+    assert len(registros) == 1
+
+
+def test_exportacao_concorrente_nao_duplica(tmp_path):
+    caminho_db = tmp_path / "outbox.db"
+    caminho_log = tmp_path / "audit.jsonl"
+    repositorio.init_db(caminho_db)
+    repositorio.registrar_decisao(
+        "C01", "aprovou", "OK", "Marina",
+        payload_auditoria={
+            "agente": "analista",
+            "saida": {"urgencia": "baixa", "intencao": "acesso"},
+            "decisao_analista": "aprovou",
+            "texto_final": "OK",
+        },
+        caminho=caminho_db,
+    )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        resultados = list(executor.map(
+            lambda _: repositorio.exportar_auditoria_pendente(caminho_log, caminho_db),
+            range(2),
+        ))
+
+    assert sum(resultados) == 1
+    registros = [json.loads(linha) for linha in caminho_log.read_text(encoding="utf-8").splitlines()]
+    assert len(registros) == 1
     assert repositorio.eventos(caminho_db, "C01")[-1]["jsonl_exportado"] == 1
 
 

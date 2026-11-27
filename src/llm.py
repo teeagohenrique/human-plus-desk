@@ -23,6 +23,7 @@ Princípios:
 - `triagem_com_origem` e `rascunho_com_origem` devolvem `(objeto, origem)` para
   que o painel mostre o selo de procedência em cada chamado.
 """
+import logging
 import os
 import re
 import threading
@@ -41,6 +42,13 @@ from src.redator import (
     validar_rascunho,
 )
 from src.triagem import Triagem, triar
+
+logger = logging.getLogger(__name__)
+
+# Timeout da requisição HTTP para o adaptador Gemini. O SDK (google-genai) aplica
+# `timeout` dentro de `GenerateContentConfig`; mantêmho como constante de
+# configuração, permitindo redefini-la via .env sem tocar no código.
+TIMEOUT_S = 30
 
 PROVIDERS = ("regras", "gemini")
 
@@ -76,6 +84,18 @@ MOTIVOS_FALLBACK = (
     "mascara_incompleta",
 )
 CONTADOR_FALLBACK = {motivo: 0 for motivo in MOTIVOS_FALLBACK}
+
+
+def _esconder_chave(chave: str, largura: int = 4) -> str:
+    """Mascara os 4 primeiros e 4 últimos caracteres de uma chave.
+
+    Usado para não expor segredos em logs e depuradores.
+    """
+    if not chave:
+        return "<sem chave>"
+    if len(chave) <= largura * 2:
+        return "<chave truncada>"
+    return f"{chave[:largura]}…{chave[-largura:]}"
 
 # A cota da API é por chave/modelo, não por sessão: o relógio do pacer continua
 # global, mas agora com reserva atômica de slot e espera fora do lock.
@@ -267,6 +287,20 @@ def validar_triagem_trechos(triagem: Triagem, texto_mascarado: str) -> tuple[boo
     return validar_trechos(trechos, texto_mascarado)
 
 
+def _triagem_regras_validada(texto_mascarado: str, origem: str) -> tuple[Triagem, str]:
+    """Triagem local com `validar_trechos`, inclusive no fallback por máscara.
+
+    A regra 'sem trecho, sem campo' vale tanto no adaptador de regras quanto no
+    fallback que substitui o Gemini quando o NER local falhou: os dois caminhos
+    usam `triar` e devem exigir evidência literal contra o texto mascarado.
+    """
+    triagem = triar(texto_mascarado)
+    ok, invalidos = validar_triagem_trechos(triagem, texto_mascarado)
+    if not ok:
+        raise ValueError(f"Trechos inválidos na triagem por regras: {invalidos}")
+    return triagem, origem
+
+
 _APELIDOS_PROVIDER = {
     "motor de regras (offline)": "regras",
     "regras (offline)": "regras",
@@ -376,6 +410,18 @@ def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativ
 
     if motivo_api is None:
         _registrar_fallback(motivo_falha)
+        logger.warning(
+            "llm: triagem caindo em fallback (modelo=%s, motivo=%s, chave=%s)",
+            modelo,
+            motivo_falha,
+            _esconder_chave(os.getenv("GEMINI_API_KEY", "")),
+        )
+    else:
+        logger.info(
+            "llm: triagem atingiu fallback por falha de API (modelo=%s, motivo=%s)",
+            modelo,
+            motivo_falha,
+        )
     return triar(texto_mascarado), "fallback"
 
 
@@ -454,6 +500,18 @@ def _rascunho_gemini(
 
     if motivo_api is None:
         _registrar_fallback(motivo_falha)
+        logger.warning(
+            "llm: rascunho caindo em fallback (origem=%s, motivo=%s, chave=%s)",
+            os.getenv("LLM_PROVIDER", "regras"),
+            motivo_falha,
+            _esconder_chave(os.getenv("GEMINI_API_KEY", "")),
+        )
+    else:
+        logger.info(
+            "llm: rascunho atingiu fallback por falha de API (origem=%s, motivo=%s)",
+            os.getenv("LLM_PROVIDER", "regras"),
+            motivo_falha,
+        )
     return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura), "fallback"
 
 
@@ -467,15 +525,11 @@ def triagem_com_origem(
     ativo = resolver_provider(provider)
     if ativo == "gemini" and not ner_disponivel:
         _registrar_fallback("mascara_incompleta")
-        triagem, origem = triar(texto_mascarado), "fallback"
+        triagem, origem = _triagem_regras_validada(texto_mascarado, "fallback")
     elif ativo == "gemini":
         triagem, origem = _triagem_gemini(texto_mascarado, model=model)
     else:
-        triagem = triar(texto_mascarado)
-        ok, invalidos = validar_triagem_trechos(triagem, texto_mascarado)
-        if not ok:
-            raise ValueError(f"Trechos inválidos na triagem por regras: {invalidos}")
-        origem = "regras"
+        triagem, origem = _triagem_regras_validada(texto_mascarado, "regras")
     _registrar_triagem(origem)
     return triagem, origem
 

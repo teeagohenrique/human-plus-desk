@@ -163,9 +163,6 @@ def ids_decididos(eventos: list[dict]) -> set[str]:
     return {e["chamado_id"] for e in eventos_analista(eventos)}
 
 
-def decisao_por_texto(texto_original: str, texto_final: str) -> str:
-    return "aprovou" if texto_final.strip() == texto_original.strip() else "editou"
-
 
 def _normalizar_resposta(texto: str) -> str:
     """Remove marcadores [..], espaços repetidos e espaço antes de pontuação."""

@@ -12,6 +12,8 @@ de corte vêm da conversa com a pessoa dona do projeto, não de pesquisa externa
 Aviso: a urgência NÃO vem pré-selecionada na interface — a analista escolhe
 explicitamente. Eventos com `urgencia_automatica` não entram como evidência.
 """
+from __future__ import annotations
+
 import json
 import zlib
 from datetime import UTC, datetime

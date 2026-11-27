@@ -1,0 +1,17 @@
+# Ambiente de desenvolvimento local (Streamlit + modelo NER PT + variáveis de ambiente).
+# Uso: docker compose up --build
+name: human-plus-desk-dev
+
+services:
+  app:
+    build: .
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    # Dev: monta o repositório para recarregar ao alterar código.
+    # volumes:
+    #   - .:/app
+    #   - /app/.venv   # ignora o venv montado, mantendo o runtime do contêiner
+    profiles:
+      - dev

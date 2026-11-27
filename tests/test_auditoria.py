@@ -82,3 +82,38 @@ def test_ler_preserva_campos_extras_e_preenche_defaults(tmp_path):
     assert lido["texto_final"] is None
     assert lido["saida"] == {"urgencia": "alta"}
     assert lido["campo_futuro"] == "preservado"
+
+
+def test_registrar_payload_ignora_linha_parcial_e_nao_duplica(tmp_path):
+    log = tmp_path / "log.jsonl"
+    log.write_text('{"quando": "incompleto"\n', encoding="utf-8")
+    evento = {
+        "quando": "2026-11-25T12:00:00+00:00",
+        "chamado_id": "C1",
+        "agente": "analista",
+        "saida": {"urgencia": "alta"},
+        "decisao_analista": "aprovou",
+        "evento_db_id": 7,
+    }
+
+    assert auditoria.registrar_payload(log, evento) is True
+    assert auditoria.registrar_payload(log, evento) is False
+    assert [e["chamado_id"] for e in auditoria.ler(log)] == ["C1"]
+
+
+def test_registrar_e_payload_fazem_flush_e_fsync(tmp_path, monkeypatch):
+    sincronizados = []
+    monkeypatch.setattr(auditoria.os, "fsync", lambda fd: sincronizados.append(fd))
+    log = tmp_path / "log.jsonl"
+
+    auditoria.registrar(log, "C1", "triagem", {"urgencia": "alta"})
+    auditoria.registrar_payload(log, {
+        "quando": "2026-11-25T12:00:00+00:00",
+        "chamado_id": "C2",
+        "agente": "analista",
+        "saida": {"urgencia": "baixa"},
+        "decisao_analista": "aprovou",
+        "evento_db_id": 8,
+    })
+
+    assert len(sincronizados) == 2

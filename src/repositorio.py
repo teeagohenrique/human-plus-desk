@@ -13,9 +13,12 @@ Regras preservadas do pipeline auditado:
 
 O arquivo `human_desk.db` é criado na raiz do projeto na primeira execução.
 """
+from __future__ import annotations
+
 import json
 import logging
 import sqlite3
+import time
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
@@ -48,8 +51,8 @@ def conectar(caminho: Path = DB_PATH) -> sqlite3.Connection:
     """Conexão com WAL e busy_timeout para sobreviver aos reruns do Streamlit."""
     conn = sqlite3.connect(Path(caminho), timeout=30)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=30000")
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
@@ -182,6 +185,17 @@ def _semear(conn: sqlite3.Connection, concluidos: set[str]) -> None:
             )
 
 
+def _payload_auditoria_valido(payload: dict) -> bool:
+    """Exige os campos mínimos do envelope `src.auditoria.Evento` no outbox."""
+    return (
+        isinstance(payload, dict)
+        and isinstance(payload.get("agente"), str) and bool(payload["agente"].strip())
+        and isinstance(payload.get("saida"), dict)
+        and isinstance(payload.get("decisao_analista"), str)
+        and bool(payload["decisao_analista"].strip())
+    )
+
+
 def _inserir_evento(
     conn: sqlite3.Connection,
     chamado_id: str,
@@ -190,6 +204,10 @@ def _inserir_evento(
     detalhes: dict | None = None,
     payload_auditoria: dict | None = None,
 ) -> int:
+    if payload_auditoria is not None and not _payload_auditoria_valido(payload_auditoria):
+        raise ValueError(
+            "payload_auditoria incompleto: exigem-se agente, saida e decisao_analista"
+        )
     cursor = conn.execute(
         """INSERT INTO eventos
            (chamado_id, acao, agente, criado_em, detalhes, jsonl_exportado, payload_auditoria)
@@ -201,7 +219,7 @@ def _inserir_evento(
             _agora(),
             json.dumps(detalhes or {}, ensure_ascii=False),
             0 if payload_auditoria is not None else 1,
-            json.dumps(payload_auditoria, ensure_ascii=False) if payload_auditoria else None,
+            json.dumps(payload_auditoria, ensure_ascii=False) if payload_auditoria is not None else None,
         ),
     )
     return int(cursor.lastrowid or 0)
@@ -294,41 +312,72 @@ def exportar_auditoria_pendente(
     caminho_log: Path = RAIZ / "data" / "painel_log.jsonl",
     caminho_db: Path = DB_PATH,
 ) -> int:
-    """Publica no JSONL as decisões confirmadas no SQLite, sem duplicar após retry."""
+    """Publica no JSONL as decisões confirmadas no SQLite, sem duplicar após retry.
+
+    `BEGIN IMMEDIATE` serializa a varredura e a atualização do flag entre
+    processos: duas instâncias do painel não podem publicar o mesmo evento.
+    """
     from src.auditoria import registrar_payload
 
-    with closing(conectar(caminho_db)) as conn:
-        pendentes = conn.execute(
-            "SELECT id, chamado_id, criado_em, payload_auditoria FROM eventos "
-            "WHERE acao = 'decisao' AND jsonl_exportado = 0 ORDER BY id"
-        ).fetchall()
-
     exportados = 0
-    for evento in pendentes:
+    with closing(conectar(caminho_db)) as conn:
+        # BEGIN IMMEDIATE serializa a varredura + flag: duas instâncias do painel
+        # não podem publicar o mesmo evento. Tenta novamente se o banco estiver
+        # ocupado (Streamlit, CLI em paralelo) sem perder a transação.
+        tentativas = 0
+        while True:
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                break
+            except sqlite3.OperationalError as exc:
+                tentativas += 1
+                if tentativas > 5 or "busy" not in str(exc).lower():
+                    raise
+                logger.warning(
+                    "auditoria: BEGIN IMMEDIATE bloqueado (%s); retrial %d/5",
+                    exc,
+                    tentativas,
+                )
+                time.sleep(min(0.1 * tentativas, 1.0))
         try:
-            payload = json.loads(evento["payload_auditoria"] or "{}")
-            if not isinstance(payload, dict):
-                raise ValueError("payload de auditoria deve ser um objeto")
-            registro = {
-                "quando": evento["criado_em"],
-                "chamado_id": evento["chamado_id"],
-                "evento_db_id": evento["id"],
-                **payload,
-            }
-            registrar_payload(caminho_log, registro)
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            logger.error(
-                "auditoria: exportação do evento %s falhou (%s)",
-                evento["id"], type(exc).__name__,
-            )
-            continue
+            pendentes = conn.execute(
+                "SELECT id, chamado_id, criado_em, payload_auditoria FROM eventos "
+                "WHERE acao = 'decisao' AND jsonl_exportado = 0 ORDER BY id"
+            ).fetchall()
+            for evento in pendentes:
+                try:
+                    payload = json.loads(evento["payload_auditoria"] or "{}")
+                    if not isinstance(payload, dict):
+                        raise ValueError("payload de auditoria deve ser um objeto")
+                    registro = {
+                        "quando": evento["criado_em"],
+                        "chamado_id": evento["chamado_id"],
+                        "evento_db_id": evento["id"],
+                        **payload,
+                    }
+                    gravado = registrar_payload(caminho_log, registro)
+                except (OSError, ValueError, json.JSONDecodeError) as exc:
+                    logger.error(
+                        "auditoria: exportação do evento %s falhou (%s)",
+                        evento["id"], type(exc).__name__,
+                    )
+                    continue
 
-        with closing(conectar(caminho_db)) as conn, conn:
-            conn.execute(
-                "UPDATE eventos SET jsonl_exportado = 1 WHERE id = ?",
-                (evento["id"],),
-            )
-        exportados += 1
+                conn.execute(
+                    "UPDATE eventos SET jsonl_exportado = 1 WHERE id = ?",
+                    (evento["id"],),
+                )
+                if gravado:
+                    exportados += 1
+                else:
+                    logger.info(
+                        "auditoria: evento %s já estava no JSONL; flag sincronizado",
+                        evento["id"],
+                    )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
     return exportados
 
 

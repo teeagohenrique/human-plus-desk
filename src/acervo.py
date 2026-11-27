@@ -6,6 +6,8 @@ O prazo enviado ao cliente é sempre escrito pela analista (Marina): as funçõe
 estimativa daqui são apenas apoio e nunca preenchem o campo sozinhas.
 Todo o conteúdo é inventado para a simulação.
 """
+from __future__ import annotations
+
 import json
 import re
 import unicodedata

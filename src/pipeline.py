@@ -5,6 +5,8 @@ um mantendo sua responsabilidade: a CLI grava auditoria e imprime, o painel
 monta a fila com origens, histórico e progresso. Este módulo não decide nada —
 a IA só sugere e a analista permanece no comando.
 """
+from __future__ import annotations
+
 from collections.abc import Callable
 from dataclasses import dataclass
 

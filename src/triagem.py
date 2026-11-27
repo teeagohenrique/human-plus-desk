@@ -7,10 +7,16 @@ Princípios:
 - A confiança é uma heurística simples, AINDA NÃO calibrada com dados reais.
 - A empresa define as regras de urgência de verdade; aqui são um ponto de partida.
 """
+from __future__ import annotations
+
+import logging
 import re
 from typing import Literal
 
 from pydantic import BaseModel, model_validator
+
+logger = logging.getLogger(__name__)
+
 
 Intencao = Literal["falha_sistema", "acesso", "reclamacao", "solicitacao", "duvida", "indefinida"]
 
@@ -81,6 +87,17 @@ def _achar_palavras(texto: str, palavras: list[str]) -> list[Motivo]:
 
 
 def triar(texto_mascarado: str) -> Triagem:
+    """Classifica o chamado em intenção e urgência.
+
+    Aplica as regras de PALAVRAS_INTENCAO e SINAIS_URGENCIA sobre o texto já mascarado.
+    Retorna um objeto Triagem completo com os trechos literais que justificam cada campo.
+
+    Raises:
+        ValueError: se o texto estiver vazio ou não for uma string.
+    """
+    if not texto_mascarado or not isinstance(texto_mascarado, str):
+        raise ValueError("texto_mascarado deve ser uma string não vazia")
+    logger.info("triagem: classificar chamado de %d caracteres", len(texto_mascarado))
     # Intenção: vence quem tiver mais palavras-chave; empate = ordem do dicionário.
     melhor, melhores_motivos = "indefinida", []
     for intencao, palavras in PALAVRAS_INTENCAO.items():

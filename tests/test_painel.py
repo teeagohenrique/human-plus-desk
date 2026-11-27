@@ -5,7 +5,6 @@ from src import auditoria
 from src.painel import (
     calibracao_triagem,
     carregar_historico,
-    decisao_por_texto,
     decisoes_vigentes,
     gerar_simulado,
     ids_decididos,
@@ -37,11 +36,6 @@ def test_fila_ordenada_por_urgencia():
 def test_fila_nao_expoe_dado_pessoal():
     for i in fila():
         assert "123.456.789-09" not in i.texto_mascarado and "98765" not in i.texto_mascarado
-
-
-def test_decisao_por_texto():
-    assert decisao_por_texto("abc", " abc ") == "aprovou"
-    assert decisao_por_texto("abc", "abd") == "editou"
 
 
 def test_registrar_decisao_e_decididos(tmp_path):
@@ -249,6 +243,27 @@ def test_rascunho_adaptado_reaproveita_leitura_inicial_sem_nova_chamada(monkeypa
     monkeypatch.setenv("GEMINI_API_KEY", "chave_teste")
     rascunho_adaptado(item, item.leitura_inicial, "gemini", "", {})
     assert len(chamadas) == 1  # provider diferente: não reaproveita
+
+
+def test_rascunho_adaptado_repassa_ner_disponivel_do_item(monkeypatch):
+    from src import llm
+
+    # Monta o item ANTES do monkeypatch: montar_fila também chama rascunho_com_origem.
+    base = fila()[0]
+    vistos = []
+
+    def rascunho_falso(texto, triagem, palpites=None, leitura=None, provider=None, model=None, ner_disponivel=False):
+        vistos.append(ner_disponivel)
+        return gerar_rascunho(texto, triagem, palpites=palpites, leitura=leitura), "fallback"
+
+    monkeypatch.setattr(llm, "rascunho_com_origem", rascunho_falso)
+    monkeypatch.setenv("GEMINI_API_KEY", "chave_teste")
+    for flag in (False, True):
+        item = base.model_copy(update={"ner_disponivel": flag})
+        rascunho, origem = rascunho_adaptado(item, "leitura_alternativa", "gemini", "m", {})
+        assert origem == "fallback"
+        assert rascunho.texto
+    assert vistos == [False, True]
 
 
 def test_registrar_decisao_guarda_origem_da_sugestao(tmp_path):

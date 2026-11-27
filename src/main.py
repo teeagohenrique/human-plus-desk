@@ -11,10 +11,11 @@ GEMINI_API_KEY e GEMINI_MODEL podem vir do .env na raiz (ignorado pelo git).
 """
 import argparse
 import json
+import logging
 import sys
 from pathlib import Path
 
-# Execução direta (`python src/main.py`) coloca `src/` no sys.path, não a raiz.
+# Execução direta (python src/main.py) coloca src/ no sys.path, não a raiz.
 # Em import normal (__package__ == "src") este bloco não roda.
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -37,6 +38,8 @@ DADOS = RAIZ / "data" / "chamados_simulados.json"
 LOG = RAIZ / "data" / "auditoria.jsonl"
 
 ORDEM = {"alta": 0, "media": 1, "baixa": 2}
+
+logger = logging.getLogger(__name__)
 
 def _carregar_env() -> None:
     """Wrapper mantido por compatibilidade; a lógica vive em `src.config`."""
@@ -128,10 +131,23 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> int:
+    """Orquestra a CLI: carrega .env, interpreta os argumentos e executa a ação."""
     _carregar_env()
-    args = _parse_args()
+    args = _parse_args(argv)
     if args.avaliar is not None:
         avaliar(Path(args.avaliar), provider=args.provider)
     else:
         demonstrar(provider=args.provider)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        logger.info("cli: interrompido pelo usuário")
+        raise SystemExit(130) from None
+    except Exception:
+        logger.exception("cli: falha inesperada")
+        raise SystemExit(1) from None

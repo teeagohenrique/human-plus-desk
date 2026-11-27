@@ -3,6 +3,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from src import llm
 from src.llm import (
     obter_contador_fallback,
     obter_contador_triagem,
@@ -18,7 +19,7 @@ from src.llm import (
 )
 from src.mascara import mascarar
 from src.percepcao import perceber
-from src.triagem import Triagem, triar
+from src.triagem import Motivo, Triagem, triar
 
 CHAMADO = (
     "Bom dia, aqui é o [NOME], CPF [CPF]. O sistema de faturamento travou pela "
@@ -73,6 +74,65 @@ def test_gemini_bloqueia_envio_quando_ner_local_nao_esta_disponivel(monkeypatch)
         assert origem == "fallback"
         assert triagem == triar(CHAMADO)
         assert contadores.fallback["mascara_incompleta"] == 1
+
+
+def test_wrappers_gemini_sem_ner_nao_chamam_api(monkeypatch):
+    from src.llm import usar_contadores
+
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy-test-key")
+    monkeypatch.setenv("GEMINI_MODEL", "dummy-model")
+    monkeypatch.setattr(
+        llm, "_triagem_gemini", lambda *args, **kwargs: pytest.fail("não deve enviar triagem ao Gemini")
+    )
+    monkeypatch.setattr(
+        llm, "_rascunho_gemini", lambda *args, **kwargs: pytest.fail("não deve enviar rascunho ao Gemini")
+    )
+    with usar_contadores() as contadores:
+        triagem = triagem_com_llm(CHAMADO, provider="gemini", ner_disponivel=False)
+        rascunho = rascunho_com_llm(CHAMADO, triagem, provider="gemini", ner_disponivel=False)
+
+    assert triagem == triar(CHAMADO)
+    assert rascunho.passou_guardrail, rascunho.feedback_guardrail
+    assert contadores.fallback["mascara_incompleta"] == 2
+
+
+def test_wrappers_repassam_sinal_ner(monkeypatch):
+    vistos = []
+
+    def triagem_falsa(texto, provider=None, model=None, ner_disponivel=True):
+        vistos.append(ner_disponivel)
+        return triar(texto), "regras"
+
+    def rascunho_falso(texto, triagem, palpites=None, leitura=None, provider=None, model=None, ner_disponivel=True):
+        vistos.append(ner_disponivel)
+        return llm.gerar_rascunho(texto, triagem, palpites=palpites, leitura=leitura), "regras"
+
+    monkeypatch.setattr(llm, "triagem_com_origem", triagem_falsa)
+    monkeypatch.setattr(llm, "rascunho_com_origem", rascunho_falso)
+    triagem_com_llm(CHAMADO, provider="regras", ner_disponivel=True)
+    rascunho_com_llm(CHAMADO, triar(CHAMADO), provider="regras", ner_disponivel=False)
+
+    assert vistos == [True, False]
+
+
+def test_fallback_por_mascara_incompleta_valida_trechos(monkeypatch):
+    from src.llm import usar_contadores
+
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy-test-key")
+    monkeypatch.setenv("GEMINI_MODEL", "dummy-model")
+    monkeypatch.setattr(
+        llm, "_triagem_gemini", lambda *args, **kwargs: pytest.fail("não deve enviar ao Gemini")
+    )
+    triagem_invalida = triar(CHAMADO).model_copy(
+        update={"motivos_intencao": [Motivo(sinal="palavra_chave", trecho="faturamento inexistente")]}
+    )
+    monkeypatch.setattr(llm, "triar", lambda _: triagem_invalida)
+
+    with (
+        pytest.raises(ValueError, match="Trechos inválidos na triagem por regras"),
+        usar_contadores(),
+    ):
+        triagem_com_origem(CHAMADO, provider="gemini", ner_disponivel=False)
 
 
 def test_validar_trechos_aceita_evidencia_literal_com_espacos_normalizados():
