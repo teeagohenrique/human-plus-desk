@@ -197,7 +197,10 @@ def _status_erro(exc: Exception) -> int | None:
 
 def _registrar_erro_api(exc: Exception) -> str:
     """Classifica a exceção da API por status e devolve o motivo registrado."""
-    motivo = {429: "erro_api_429", 503: "erro_api_503"}.get(_status_erro(exc), "erro_api_outro")
+    status = _status_erro(exc)
+    motivo = "erro_api_outro" if status is None else {429: "erro_api_429", 503: "erro_api_503"}.get(
+        status, "erro_api_outro"
+    )
     _registrar_fallback(motivo)
     return motivo
 

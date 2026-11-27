@@ -76,7 +76,7 @@ def carregar(caminho: Path = CAMINHO_ACERVO) -> tuple[Material, ...]:
     return _carregar_por_mtime(alvo, alvo.stat().st_mtime_ns)
 
 
-carregar.cache_clear = _carregar_por_mtime.cache_clear
+setattr(carregar, "cache_clear", _carregar_por_mtime.cache_clear)
 
 
 def todos_topicos(caminho: Path = CAMINHO_ACERVO) -> list[Topico]:
@@ -86,7 +86,8 @@ def todos_topicos(caminho: Path = CAMINHO_ACERVO) -> list[Topico]:
 @lru_cache(maxsize=4)
 def _traducoes_en_por_mtime(caminho_resolvido: Path, mtime_ns: int) -> dict:
     _ = mtime_ns
-    return json.loads(caminho_resolvido.read_text(encoding="utf-8"))
+    dados: dict = json.loads(caminho_resolvido.read_text(encoding="utf-8"))
+    return dados
 
 
 def _carregar_traducoes_en(caminho: Path = CAMINHO_ACERVO_EN) -> dict:
@@ -99,11 +100,11 @@ def texto_material(material_id: str, campo: str, idioma: str = "PT") -> str:
     material = next((m for m in carregar() if m.id == material_id), None)
     if material is None:
         return ""
-    base = getattr(material, campo)
+    base: str = getattr(material, campo)
     if idioma.upper() != "EN":
         return base
     chave = {"titulo": "title", "resumo": "summary"}.get(campo)
-    traduzido = _carregar_traducoes_en().get("materials", {}).get(material_id, {}).get(chave)
+    traduzido: str | None = _carregar_traducoes_en().get("materials", {}).get(material_id, {}).get(chave)
     return traduzido or base
 
 

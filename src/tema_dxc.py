@@ -14,7 +14,8 @@ from src.textos import I18N  # noqa: F401  (reexportado: fonte unica dos rotulos
 def get_text(key: str) -> str:
     """Retorna o texto traduzido conforme o idioma ativo no session_state."""
     lang = st.session_state.get("lang", "PT")
-    return I18N.get(lang, I18N["PT"]).get(key, key)
+    texto: str = I18N.get(lang, I18N["PT"]).get(key, key)
+    return texto
 
 
 def render_dxc_theme(dark_mode: bool = False) -> None:
@@ -638,7 +639,8 @@ def render_language_selector() -> str:
             if idioma_antes != "EN":
                 st.session_state["_lang_seq"] = int(st.session_state.get("_lang_seq", 0)) + 1
                 st.rerun()
-    return st.session_state["lang"]
+    lang: str = st.session_state["lang"]
+    return lang
 
 
 def _avancar_cascata(state_key: str, total: int) -> None:

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 Intencao = Literal["falha_sistema", "acesso", "reclamacao", "solicitacao", "duvida", "indefinida"]
 
 # Ordem = desempate quando duas intenções têm o mesmo número de palavras.
-PALAVRAS_INTENCAO: dict[str, list[str]] = {
+PALAVRAS_INTENCAO: dict[Intencao, list[str]] = {
     "falha_sistema": ["travou", "travando", "travamento", "fora do ar", "caiu", "erro",
                       "não abre", "nao abre", "lento", "parou de funcionar", "não funciona"],
     "acesso": ["senha", "acesso", "login", "bloqueado", "não consigo entrar", "nao consigo entrar"],
@@ -99,7 +99,8 @@ def triar(texto_mascarado: str) -> Triagem:
         raise ValueError("texto_mascarado deve ser uma string não vazia")
     logger.info("triagem: classificar chamado de %d caracteres", len(texto_mascarado))
     # Intenção: vence quem tiver mais palavras-chave; empate = ordem do dicionário.
-    melhor, melhores_motivos = "indefinida", []
+    melhor: Intencao = "indefinida"
+    melhores_motivos: list[Motivo] = []
     for intencao, palavras in PALAVRAS_INTENCAO.items():
         motivos = _achar_palavras(texto_mascarado, palavras)
         if len(motivos) > len(melhores_motivos):
@@ -114,8 +115,11 @@ def triar(texto_mascarado: str) -> Triagem:
             pontos += peso
             recorrente = recorrente or sinal == "recorrencia"
 
-    urgencia = "alta" if pontos >= LIMIAR_ALTA else "media" if pontos >= LIMIAR_MEDIA else "baixa"
+    urgencia: Literal["baixa", "media", "alta"] = (
+        "alta" if pontos >= LIMIAR_ALTA else "media" if pontos >= LIMIAR_MEDIA else "baixa"
+    )
 
+    confianca: Literal["baixa", "media", "alta"]
     if melhor == "indefinida":
         confianca = "baixa"
     elif len(melhores_motivos) >= 2:

@@ -227,7 +227,7 @@ def _usar_sugestao(chave_sugestao: str, chave_resposta: str, item_id: str | None
 
 
 def _estado_item(item) -> dict:
-    estados = st.session_state.setdefault("estado_chamados", {})
+    estados: dict = st.session_state.setdefault("estado_chamados", {})
     if item.id not in estados:
         opcoes = leituras_do_item(item, auditoria.ler(LOG), carregar_config(CONFIG))
         estados[item.id] = {
@@ -246,7 +246,8 @@ def _estado_item(item) -> dict:
             "cenario_tempo_idx": 0,
         }
         st.session_state.setdefault(f"camada_{item.id}", "chamado")
-    return estados[item.id]
+    estado: dict = estados[item.id]
+    return estado
 
 
 def _leitura_para_registro(estado: dict) -> tuple[str | None, str | None]:
@@ -566,7 +567,7 @@ def _etapa_analise(item, txt: dict) -> None:
 
 
 
-def gerar_texto_com_passos_marcados(topico, passos, passos_marcados, idioma="PT", txt=None):
+def gerar_texto_com_passos_marcados(topico, passos, passos_marcados, idioma="PT", txt=None) -> str:
     """Gera o texto do 'Simular melhor resposta' a partir dos passos marcados.
 
     Usa SOMENTE os passos marcados, respeitando as regras de cada passo:
@@ -904,7 +905,8 @@ def tela_marina(provider: str, txt: dict, agente: str = "Marina") -> None:
 
     def urgencia_efetiva(item) -> str:
         """Urgência confirmada pela analista prevalece sobre a sugestão da IA."""
-        return estado_db.get(item.id, {}).get("urgencia_confirmada") or item.triagem.urgencia
+        confirmada: str | None = estado_db.get(item.id, {}).get("urgencia_confirmada")
+        return confirmada or item.triagem.urgencia
 
     fila_critica = [i for i in fila_completa if urgencia_efetiva(i) == "alta"]
     visao = _render_indicadores(txt, len(itens), len(fila_completa), len(fila_critica), len(feitos))

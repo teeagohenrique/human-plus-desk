@@ -99,7 +99,8 @@ def rascunho_adaptado(
     """
     chave = (item.id, leitura or "", provider or "regras", model or "")
     if cache is not None and chave in cache:
-        return cache[chave]
+        encontrado: tuple[Rascunho, str] = cache[chave]
+        return encontrado
     if leitura == item.leitura_inicial and llm.resolver_provider(provider) == item.provider_rascunho:
         resultado = (item.rascunho, item.origem_rascunho)
     else:
@@ -321,8 +322,8 @@ def calibracao_triagem(eventos: list[dict]) -> dict:
 def _urgencia_simulada(rng, ia: str) -> str:
     if rng.random() < 0.8:
         return ia
-    niveis = list(ORDEM_URGENCIA)  # alta, media, baixa
-    i = niveis.index(ia) + rng.choice([-1, 1])
+    niveis: list[str] = list(ORDEM_URGENCIA)  # alta, media, baixa
+    i: int = niveis.index(ia) + rng.choice([-1, 1])
     return niveis[min(max(i, 0), 2)]
 
 

@@ -56,7 +56,7 @@ class ResultadoMascara(BaseModel):
 def _mascarar_nomes(texto: str) -> tuple[str, int]:
     total = 0
 
-    def _substituir(m: re.Match) -> str:
+    def _substituir(m: re.Match[str]) -> str:
         nonlocal total
         prefixo, candidato = m.group(1), m.group(2)
         palavras = [p for p in candidato.split() if p not in ("da", "de", "do", "dos", "das")]

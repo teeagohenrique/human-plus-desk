@@ -39,7 +39,7 @@ class Config:
         """Recusa ambiente de produção com chave de exemplo ou ausente."""
         if self.ambiente != "producao":
             return
-        if not self.segura():
+        if not self.segura:
             raise RuntimeError(
                 "APP_ENV=producao e GEMINI_API_KEY está ausente ou é o "
                 "placeholder de exemplo. Corrija o arquivo .env ou rode em dev."

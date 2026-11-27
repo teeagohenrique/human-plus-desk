@@ -62,7 +62,8 @@ def casos_necessarios(k: int, erro_max: float = ERRO_MAX) -> int | None:
 def carregar_config(caminho: Path) -> dict:
     caminho = Path(caminho)
     if caminho.exists():
-        return json.loads(caminho.read_text(encoding="utf-8"))
+        dados: dict = json.loads(caminho.read_text(encoding="utf-8"))
+        return dados
     return {"aprovados": [], "suspensos": []}
 
 
@@ -127,8 +128,7 @@ def aprovar_autonomia(caminho: Path, contexto: str, gestor: str, eventos: list[d
         raise ValueError(f"ação não pode ser autônoma: {acao}")
     cfg = carregar_config(caminho)
     linha = next((item for item in status(eventos, cfg) if item["contexto"] == contexto), None)
-    prova = linha is not None and linha["limite_erro"] <= ERRO_MAX
-    if not prova or linha["estado"] == "autonomo":
+    if linha is None or linha["limite_erro"] > ERRO_MAX or linha["estado"] == "autonomo":
         raise ValueError("contexto não prova erro <= 1% (ou já é autônomo): autonomia negada")
     cfg["suspensos"] = [s for s in cfg["suspensos"] if s["contexto"] != contexto]
     cfg["aprovados"] = [a for a in cfg["aprovados"] if a["contexto"] != contexto]

@@ -36,7 +36,8 @@ class Proposta(BaseModel):
 def carregar_config(caminho: Path) -> dict:
     caminho = Path(caminho)
     if caminho.exists():
-        return json.loads(caminho.read_text(encoding="utf-8"))
+        dados: dict = json.loads(caminho.read_text(encoding="utf-8"))
+        return dados
     return {"ativas": list(LEITURAS), "aprovacoes": []}
 
 

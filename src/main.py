@@ -64,7 +64,8 @@ def processar(
 
 
 def carregar(caminho: Path = DADOS) -> list[dict]:
-    return json.loads(Path(caminho).read_text(encoding="utf-8"))["chamados"]
+    chamados: list[dict] = json.loads(Path(caminho).read_text(encoding="utf-8"))["chamados"]
+    return chamados
 
 
 def demonstrar(provider: str | None = None) -> None:

@@ -31,7 +31,7 @@ _RE_PADRAO = re.compile(r"há (\d+) chamados.*?últimos (\d+) dias")
 
 
 @st.cache_resource
-def _cache_filas() -> dict[tuple[str, str], list]:
+def _cache_filas() -> dict[tuple[str, str, str], list]:
     return {}
 
 
@@ -84,7 +84,7 @@ def fila_base(provider: str = "regras", model: str = "", txt: dict | None = None
     return itens
 
 
-fila_base.clear = _limpar_cache_filas
+setattr(fila_base, "clear", _limpar_cache_filas)
 
 
 def formatar_data_hora(iso_str: str | None, lang: str = "PT") -> str:
@@ -106,7 +106,8 @@ def nome_sinal(sinal: str, txt: dict) -> str:
     if sinal.startswith("historico:"):
         prefixo = txt.get("history_prefix", "Histórico")
         return f"{prefixo} ({sinal.split(':', 1)[1]})"
-    return txt["sinais"].get(sinal, sinal.replace("_", " ").capitalize())
+    rotulo: str = txt["sinais"].get(sinal, sinal.replace("_", " ").capitalize())
+    return rotulo
 
 
 def traduzir_leitura(chave: str, txt: dict) -> str:
@@ -180,7 +181,8 @@ def traduzir_hipotese_salva(texto: str, n_evidencias: int, txt: dict) -> str:
     if not hips or txt.get("lang_code") == "PT":
         return texto
     if "solução provisória" in texto or "prazo mencionado" in texto:
-        return hips.get("necessidade_nao_dita", texto)
+        traducao: str = hips.get("necessidade_nao_dita", texto)
+        return traducao
     if "caso isolado" in texto:
         m = _RE_PADRAO.search(texto)
         n = int(m.group(1)) if m else n_evidencias
@@ -188,7 +190,8 @@ def traduzir_hipotese_salva(texto: str, n_evidencias: int, txt: dict) -> str:
         tpl = hips.get("padrao")
         return tpl.format(n=n, dias=dias) if tpl else texto
     if "repetição pode estar pesando" in texto:
-        return hips.get("risco_recorrencia", texto)
+        traducao_risco: str = hips.get("risco_recorrencia", texto)
+        return traducao_risco
     return texto
 
 
@@ -198,9 +201,10 @@ def estilizar_grafico(chart: alt.Chart, escuro: bool = True) -> alt.Chart:
     tit = "#94A3B8" if escuro else "#475569"
     grd = "rgba(148, 163, 184, 0.12)" if escuro else "rgba(15, 23, 42, 0.08)"
     dom = "rgba(148, 163, 184, 0.25)" if escuro else "rgba(15, 23, 42, 0.18)"
-    return (
+    grafico: alt.Chart = (
         chart.configure_view(strokeWidth=0, fill="transparent")
         .configure(background="transparent")
         .configure_axis(labelColor=lbl, titleColor=tit, gridColor=grd, domainColor=dom)
         .configure_legend(labelColor=lbl, titleColor=tit)
     )
+    return grafico

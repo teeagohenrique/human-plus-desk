@@ -79,7 +79,7 @@ def _leituras(sinais: set[str], pelo_historico: bool) -> list[str]:
 
 
 def _historico_mesma_intencao(triagem: Triagem, historico: list[Historico]) -> list[tuple[Historico, Motivo]]:
-    achados = []
+    achados: list[tuple[Historico, Motivo]] = []
     if triagem.intencao == "indefinida":
         return achados
     for h in historico:

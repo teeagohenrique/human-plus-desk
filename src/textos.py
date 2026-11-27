@@ -4,8 +4,9 @@ Fonte única dos rótulos exibidos na tela. Nomes internos do projeto
 (`percepcao.py`, `triagem.py`, `redator.py`) permanecem técnicos; aqui vive o
 vocabulário de negócio mostrado ao usuário. Sem dependência de Streamlit.
 """
+from typing import Any
 
-I18N = {
+I18N: dict[str, dict[str, Any]] = {
     "PT": {
         # Navegação e identidade
         "lang_code": "PT",

@@ -316,7 +316,9 @@ def _expander_auditoria(txt: dict) -> None:
                 cid: f"{cid} · {tk['resolvido_por']} · {formatar_data_hora(tk.get('resolvido_em'), lang=lang)}"
                 for cid, tk in finalizados.items()
             }
-            alvo = st.selectbox(txt["db_reopen_select"], list(rotulos), format_func=rotulos.get, key="db_reopen_alvo")
+            alvo = st.selectbox(
+                txt["db_reopen_select"], list(rotulos), format_func=lambda cid: rotulos[cid], key="db_reopen_alvo"
+            )
             texto_rafael = resolver_arroba_rafael(alvo, finalizados[alvo].get("resposta_final"))
             if texto_rafael:
                 st.caption(f"**{txt['rafael_msg_title']}**")
