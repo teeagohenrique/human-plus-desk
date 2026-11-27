@@ -66,3 +66,27 @@ def test_hipoteses_em_tom_de_duvida_e_sem_rotulo():
     for p in perceber(CARLOS, triar(CARLOS), HIST):
         assert any(w in p.hipotese.lower() for w in ("pode", "parece", "talvez"))
         assert p.pergunta_confirmacao.endswith("?")
+
+
+def test_guardrail_rejeita_hipotese_com_rotulo():
+    from src.painel import Palpite
+    from src.percepcao import _ROTULO, _validar_hipoteses
+    from src.triagem import Motivo
+
+    hipotese_rotulada = "Você está muito nervoso e isso atrapalha."
+    assert _ROTULO.search(hipotese_rotulada) is not None
+    palpite = Palpite(
+        tipo="padrao",
+        hipotese=hipotese_rotulada,
+        evidencias=[Motivo(sinal="chamado", trecho="precisamos de ajuda")],
+        confianca="baixa",
+        pergunta_confirmacao="Faz sentido revisar este atendimento?",
+        leituras=["pressa_prazo"],
+    )
+    with pytest.raises(ValueError, match="rótulo"):
+        _validar_hipoteses([palpite])
+
+    palpite_limpo = palpite.model_copy(
+        update={"hipotese": "Pode ser que uma solução provisória ajude antes da correção."}
+    )
+    _validar_hipoteses([palpite_limpo])

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from src import auditoria
 from src.painel import (
+    AGENTE_REABERTURA,
     calibracao_triagem,
     carregar_historico,
     decisoes_vigentes,
@@ -45,6 +46,48 @@ def test_registrar_decisao_e_decididos(tmp_path):
     ev = auditoria.ler(log)
     assert ids_decididos(ev) == {item.id}
     assert ev[0]["decisao_analista"] == "editou"
+
+
+def test_ids_decididos_exclui_decisao_anterior_a_reabertura(tmp_path):
+    from src import auditoria
+
+    log = tmp_path / "l.jsonl"
+    chamado_id = "C99"
+
+    # Decisão 1 (agente: analista)
+    auditoria.registrar(log, chamado_id, "analista", {
+        "acao": "registrar_decisao", "texto_final": "texto final", "leitura": "pressa_prazo"},
+        decisao="editou", texto_final="texto final")
+    # Decisão 2 (agente: analista)
+    auditoria.registrar(log, chamado_id, "analista", {
+        "acao": "registrar_decisao", "texto_final": "texto substituído", "leitura": "cansaco_repeticao"},
+        decisao="editou", texto_final="texto substituído")
+    # Reabertura (agente: reabertura)
+    auditoria.registrar(log, chamado_id, AGENTE_REABERTURA, marcador_reabertura(chamado_id, ""), decisao="reabertura")
+    # Decisão 3 (agente: analista)
+    auditoria.registrar(log, chamado_id, "analista", {
+        "acao": "registrar_decisao", "texto_final": "nova decisão", "leitura": "pressa_prazo"},
+        decisao="editou", texto_final="nova decisão")
+
+    ev = auditoria.ler(log)
+    assert ids_decididos(ev) == {chamado_id}
+
+
+def test_ids_decididos_vazio_apos_reabertura_sem_decisao_seguinte(tmp_path):
+    from src import auditoria
+
+    log = tmp_path / "l.jsonl"
+    chamado_id = "C98"
+
+    # Decisão 1 (agente: analista)
+    auditoria.registrar(log, chamado_id, "analista", {
+        "acao": "registrar_decisao", "texto_final": "texto final", "leitura": "pressa_prazo"},
+        decisao="editou", texto_final="texto final")
+    # Reabertura SEM decisão posterior
+    auditoria.registrar(log, chamado_id, AGENTE_REABERTURA, marcador_reabertura(chamado_id, ""), decisao="reabertura")
+
+    ev = auditoria.ler(log)
+    assert ids_decididos(ev) == set()
 
 
 def test_decisao_invalida_e_recusada(tmp_path):

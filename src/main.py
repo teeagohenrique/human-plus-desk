@@ -103,6 +103,13 @@ def avaliar(caminho: Path = DADOS, provider: str | None = None) -> dict:
         n = len(chamados)
         origem = obter_contador_triagem()
         motivos = obter_contador_fallback()
+        if n == 0:
+            print("Origem: gemini=0 | regras=0 | fallback=0")
+            print("Fallbacks: nenhum")
+            print("Arquivo: (vazio) | Provider: (vazio) | Intenção: 0/0 (0%) | Urgência: 0/0 (0%)")
+            return {"arquivo": Path(caminho).name, "provider": ativo, "n": 0,
+                    "acertos_intencao": 0, "acertos_urgencia": 0,
+                    "origem": origem, "fallback_motivos": motivos}
     print(f"Origem: gemini={origem['gemini']} | regras={origem['regras']} | fallback={origem['fallback']}")
     detalhes = ", ".join(f"{motivo}={qtd}" for motivo, qtd in motivos.items() if qtd) or "nenhum"
     print(f"Fallbacks: {detalhes}")

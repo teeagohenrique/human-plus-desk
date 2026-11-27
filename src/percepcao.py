@@ -138,9 +138,18 @@ def perceber(texto_mascarado: str, triagem: Triagem, historico: list[Historico] 
 
     palpites.sort(key=lambda p: -_CONF[p.confianca])
     palpites = palpites[:MAX_PALPITES]
-    for p in palpites:  # guardrail: nada de rótulo sobre a pessoa
-        assert not _ROTULO.search(p.hipotese), p.hipotese
+    _validar_hipoteses(palpites)
     return palpites
+
+
+def _validar_hipoteses(palpites: list[Palpite]) -> None:
+    """Guardrail de percepção: nenhuma hipótese pode conter rótulo da pessoa.
+
+    Levanta ValueError com mensagem clara quando a hipótese contém rótulo.
+    """
+    for p in palpites:
+        if _ROTULO.search(p.hipotese):
+            raise ValueError(f"hipótese de percepção contém rótulo da pessoa: {p.hipotese!r}")
 
 
 def trechos_da_leitura(leitura: str, triagem: Triagem, palpites: list[Palpite]) -> list[Motivo]:

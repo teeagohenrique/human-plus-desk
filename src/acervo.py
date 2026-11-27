@@ -222,6 +222,8 @@ def estimar(topico: Topico, indice_cenario: int, agora: datetime | None = None) 
     ingênuos são interpretados como horário local de São Paulo.
     """
     agora = agora or datetime.now(FUSO_HORARIO)
+    if indice_cenario < 0 or indice_cenario >= len(topico.tabela_tempo):
+        raise ValueError(f"índice_cenario {indice_cenario} fora da faixa [0, {len(topico.tabela_tempo) - 1}]")
     faixa = topico.tabela_tempo[indice_cenario]
     inicio = _ajustar_para_expediente(agora)
     return Estimativa(

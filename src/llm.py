@@ -34,6 +34,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.config import esconde_chave
 from src.redator import (
     PEND_PRAZO,
     PEND_PROVISORIA,
@@ -63,6 +64,10 @@ ESPERA_503_TETO = 60.0
 STATUS_TRANSIENTES = (429, 503)
 _ULTIMA_CHAMADA_GEMINI: float | None = None
 
+# A cota da API é por chave/modelo, não por sessão: o relógio do pacer continua
+# global, mas agora com reserva atômica de slot e espera fora do lock.
+_TRAVA_PAUSA = threading.Lock()
+
 # A inicialização do cliente é custosa e a chave é a mesma em todo o processo:
 # uma instância por chave, criada sob demanda e nunca fixada no código.
 _CLIENTES_GEMINI: dict[str, Any] = {}
@@ -86,20 +91,7 @@ MOTIVOS_FALLBACK = (
 CONTADOR_FALLBACK = {motivo: 0 for motivo in MOTIVOS_FALLBACK}
 
 
-def _esconder_chave(chave: str, largura: int = 4) -> str:
-    """Mascara os 4 primeiros e 4 últimos caracteres de uma chave.
 
-    Usado para não expor segredos em logs e depuradores.
-    """
-    if not chave:
-        return "<sem chave>"
-    if len(chave) <= largura * 2:
-        return "<chave truncada>"
-    return f"{chave[:largura]}…{chave[-largura:]}"
-
-# A cota da API é por chave/modelo, não por sessão: o relógio do pacer continua
-# global, mas agora com reserva atômica de slot e espera fora do lock.
-_TRAVA_PAUSA = threading.Lock()
 
 
 @dataclass
@@ -249,7 +241,7 @@ def _chamar_api_gemini(cliente: Any, modelo: str, contents: str, config: Any) ->
                 else:
                     espera = min(2.0 ** tentativa, 30.0)
             time.sleep(espera)
-
+    raise RuntimeError(f"_chamar_api_gemini: falha após {max(MAX_TENTATIVAS_API, MAX_TENTATIVAS_503)} tentativas para modelo {modelo}")
 
 def _normalizar_espacos(texto: str) -> str:
     return " ".join(texto.split())
@@ -414,13 +406,13 @@ def _triagem_gemini(texto_mascarado: str, model: str | None = None, max_tentativ
             "llm: triagem caindo em fallback (modelo=%s, motivo=%s, chave=%s)",
             modelo,
             motivo_falha,
-            _esconder_chave(os.getenv("GEMINI_API_KEY", "")),
+            esconde_chave(os.getenv("GEMINI_API_KEY", "")),
         )
     else:
         logger.info(
             "llm: triagem atingiu fallback por falha de API (modelo=%s, motivo=%s)",
             modelo,
-            motivo_falha,
+            motivo_api or motivo_falha,
         )
     return _triagem_regras_validada(texto_mascarado, "fallback")[0], "fallback"
 
@@ -504,13 +496,13 @@ def _rascunho_gemini(
             "llm: rascunho caindo em fallback (origem=%s, motivo=%s, chave=%s)",
             os.getenv("LLM_PROVIDER", "regras"),
             motivo_falha,
-            _esconder_chave(os.getenv("GEMINI_API_KEY", "")),
+            esconde_chave(os.getenv("GEMINI_API_KEY", "")),
         )
     else:
         logger.info(
             "llm: rascunho atingiu fallback por falha de API (origem=%s, motivo=%s)",
             os.getenv("LLM_PROVIDER", "regras"),
-            motivo_falha,
+            motivo_api or motivo_falha,
         )
     return gerar_rascunho(texto_mascarado, triagem, palpites=palpites, leitura=leitura), "fallback"
 

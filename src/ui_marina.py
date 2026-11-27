@@ -31,6 +31,7 @@ from src.redator import (
     pendencias_abertas,
 )
 from src.tema_dxc import render_card_cascata
+from src.textos import I18N
 from src.ui_comum import (
     CONFIG,
     COR,
@@ -69,6 +70,61 @@ def _ao_trocar_camada(item_id: str) -> None:
             estados[item_id]["camada"] = nova
 
 
+def _lang_code() -> str:
+    """Fonte única do idioma: o mesmo `lang_code` do dicionário entregue como `txt`."""
+    lang = str(st.session_state.get("lang", "PT"))
+    return str(I18N.get(lang, I18N["PT"]).get("lang_code", "PT"))
+
+
+def _janela_simulada(topico, lang: str, cenario: int) -> str:
+    """Janela formatada no idioma corrente para a simulação de prazo do Acervo."""
+    est = acervo.estimar(topico, cenario)
+    de_str = formatar_data_hora(est.previsto_de.isoformat(), lang=lang)
+    ate_str = formatar_data_hora(est.previsto_ate.isoformat(), lang=lang)
+    if lang.upper() == "EN":
+        return f"{de_str} to {ate_str} ({est.minutos_min} to {est.minutos_max} min)"
+    return f"{de_str} até {ate_str} ({est.minutos_min} a {est.minutos_max} min)"
+
+
+def _solucao_acervo_no_idioma(topico, estado: dict, lang: str, txt: dict | None) -> str:
+    """Reconstrói a solução gerada no idioma corrente sem perder os passos marcados."""
+    marcacoes = estado.get("passos_simulados_ok")
+    if marcacoes:
+        passos = acervo.texto_topico(topico, "passos", lang)
+        return gerar_texto_com_passos_marcados(topico, passos, marcacoes, idioma=lang, txt=txt)
+    return str(acervo.texto_topico(topico, "solucao_provisoria", lang))
+
+
+def _retraduzir_sugestao_acervo(item, estado: dict, txt: dict) -> None:
+    """Atualiza a sugestão automática na troca de idioma; nunca sobrescreve edição humana."""
+    lang = str(txt.get("lang_code", "PT"))
+    gerada = estado.get("sugestao_acervo")
+    if not gerada or estado.get("sugestao_acervo_lang") == lang:
+        return
+    topico_id = estado.get("acervo_topico_id")
+    topico = acervo.obter_topico(topico_id) if topico_id else None
+    if topico is None:
+        return
+    leitura_reg, _ = _leitura_para_registro(estado)
+    chaves = {f"sug_ui_{item.id}_{sufixo}" for sufixo in {leitura_reg or "base", "base"}}
+    if any(st.session_state.get(chave) not in (None, gerada) for chave in chaves):
+        return  # a analista editou a caixa: a edição é soberana
+
+    solucao = _solucao_acervo_no_idioma(topico, estado, lang, txt)
+    texto = str(
+        formatar_sugestao_acervo(
+            item.triagem, solucao, idioma=lang, chamado_mascarado=item.texto_mascarado
+        )
+    )
+    if estado.get(f"prazo_sim_{item.id}"):
+        janela = _janela_simulada(topico, lang, int(estado.get("cenario_tempo_idx", 0)))
+        texto = texto.replace(PEND_PRAZO, f"[{janela}]").replace(PEND_PRAZO_EN, f"[{janela}]")
+    estado["sugestao_acervo"] = texto
+    estado["sugestao_acervo_lang"] = lang
+    for chave in chaves:
+        st.session_state[chave] = texto
+
+
 def _aplicar_acervo_na_sugestao(
     item,
     estado: dict,
@@ -77,7 +133,7 @@ def _aplicar_acervo_na_sugestao(
     prazo_override: str | None = None,
 ) -> str:
     """Injeta a solução provisória (e o prazo simulado, se clicado) na sugestão OARS."""
-    idioma = str(st.session_state.get("lang", "PT"))
+    idioma = _lang_code()
     solucao = (
         solucao_override
         if solucao_override is not None
@@ -95,6 +151,7 @@ def _aplicar_acervo_na_sugestao(
         )
     estado["acervo_topico_id"] = topico.id
     estado["sugestao_acervo"] = texto_estruturado
+    estado["sugestao_acervo_lang"] = idioma
     leitura_reg, _ = _leitura_para_registro(estado)
     for sufixo in {leitura_reg or "base", "base"}:
         st.session_state[f"sug_ui_{item.id}_{sufixo}"] = texto_estruturado
@@ -184,6 +241,7 @@ def _estado_item(item) -> dict:
             "camada_origem_acervo": "chamado",
             "acervo_topico_id": None,
             "sugestao_acervo": None,
+            "sugestao_acervo_lang": None,
             "usou_sugestao": False,
             "cenario_tempo_idx": 0,
         }
@@ -679,15 +737,9 @@ def _usar_prazo_sim(item, estado: dict, txt: dict) -> None:
     topico, _ = topico_do_item(item)
     if topico is None:
         return
-    lang = txt.get("lang_code", "PT")
+    lang = str(txt.get("lang_code", "PT"))
     cenario = estado.get("cenario_tempo_idx", 0)
-    est = acervo.estimar(topico, cenario)
-    de_str = formatar_data_hora(est.previsto_de.isoformat(), lang=lang)
-    ate_str = formatar_data_hora(est.previsto_ate.isoformat(), lang=lang)
-    if lang.upper() == "EN":
-        janela = f"{de_str} to {ate_str} ({est.minutos_min} to {est.minutos_max} min)"
-    else:
-        janela = f"{de_str} até {ate_str} ({est.minutos_min} a {est.minutos_max} min)"
+    janela = _janela_simulada(topico, lang, cenario)
     estado[f"prazo_sim_{item.id}"] = janela
     estado["prazo_sim_cenario"] = cenario
     _aplicar_acervo_na_sugestao(item, estado, topico, prazo_override=janela)
@@ -756,6 +808,7 @@ def _etapa_decisao(item, estado: dict, txt: dict, agente: str) -> None:
 
 def _etapa_resposta(item, estado: dict, txt: dict, agente: str, provider: str) -> None:
     leitura_registro, leitura_livre = _leitura_para_registro(estado)
+    _retraduzir_sugestao_acervo(item, estado, txt)
     st.session_state.setdefault("cache_rascunhos", {})
     rascunho, origem = rascunho_adaptado(
         item, leitura_registro, provider, os.getenv("GEMINI_MODEL", ""), st.session_state["cache_rascunhos"],

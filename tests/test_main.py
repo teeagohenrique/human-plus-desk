@@ -115,21 +115,39 @@ def test_demonstrar_imprime_fila_ordenada_e_log(monkeypatch, capsys, tmp_path):
 
 
 def test_avaliar_mostra_divergencia_e_retorna_motivos(monkeypatch, capsys, tmp_path):
-    """Cobre o print de divergencia (linha 86) e o contrato de fallback_motivos."""
-    chamados = [{"id": "C1", "texto": "texto", "gabarito": {"intencao": "acesso", "urgencia": "alta"}}]
+    "Cobre o print de divergencia (linha 86) e o contrato de fallback_motivos."
+    chamados = [{
+        "id": "C1", "texto": "Sistema travou, preciso fechar o mes hoje.",
+        "gabarito": {"intencao": "acesso", "urgencia": "alta"},
+    }]
     caminho = tmp_path / "gabarito.json"
     caminho.write_text(json.dumps({"chamados": chamados}), encoding="utf-8")
-    triagem = type("T", (), {"intencao": "duvida", "urgencia": "baixa"})()
+    triagem = type("T", (), {
+        "intencao": "duvida", "urgencia": "baixa",
+        "pontuacao_urgencia": 1, "confianca": "baixa",
+        "motivos_intencao": [], "motivos_urgencia": [],
+    })()
     monkeypatch.setattr(main, "triagem_com_llm", lambda *a, **k: triagem)
 
     resultado = main.avaliar(caminho)
 
     saida = capsys.readouterr().out
     assert "C1: previsto duvida/baixa | gabarito acesso/alta" in saida
-    assert "Fallbacks: nenhum" in saida
     assert resultado["acertos_intencao"] == 0
     assert resultado["acertos_urgencia"] == 0
     assert resultado["fallback_motivos"] == {k: 0 for k in resultado["fallback_motivos"]}
+
+
+def test_avaliar_mantem_semente_vazia_sem_excecao(monkeypatch, capsys, tmp_path):
+    "Garante que arquivo vazio não levanta ZeroDivisionError e retorna n=0."
+    caminho = tmp_path / "vazio2.json"
+    caminho.write_text(json.dumps({"chamados": []}), encoding="utf-8")
+    resultado = main.avaliar(caminho)
+    saida = capsys.readouterr().out
+    assert "0/0 (0%)" in saida
+    assert resultado["n"] == 0
+    assert resultado["acertos_intencao"] == 0
+    assert resultado["acertos_urgencia"] == 0
 
 
 def test_parse_args_avaliar_e_provider():

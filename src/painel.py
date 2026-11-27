@@ -160,7 +160,7 @@ def decisoes_vigentes(eventos: list[dict]) -> list[dict]:
 
 
 def ids_decididos(eventos: list[dict]) -> set[str]:
-    return {e["chamado_id"] for e in eventos_analista(eventos)}
+    return {e["chamado_id"] for e in decisoes_vigentes(eventos)}
 
 
 

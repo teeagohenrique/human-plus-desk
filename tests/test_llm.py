@@ -1,3 +1,4 @@
+import logging
 import sys
 from types import ModuleType, SimpleNamespace
 
@@ -94,6 +95,57 @@ def test_wrappers_gemini_sem_ner_nao_chamam_api(monkeypatch):
     assert triagem == triar(CHAMADO)
     assert rascunho.passou_guardrail, rascunho.feedback_guardrail
     assert contadores.fallback["mascara_incompleta"] == 2
+
+
+def test_triagem_gemini_log_api_erro_429(caplog, monkeypatch):
+    """Garante que o log de fallback mostra o motivo correto da falha de API (não fallback genérico)."""
+    from src.llm import usar_contadores
+
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy-test-key")
+    monkeypatch.setenv("GEMINI_MODEL", "dummy-model")
+    caplog.set_level(logging.DEBUG)
+
+    def simula_429(*args, **kwargs):
+        class APIError(Exception):
+            code = 429
+            status_code = 429
+        raise APIError("429 Too Many Requests")
+
+    monkeypatch.setattr(llm, "_chamar_api_gemini", simula_429)
+    with usar_contadores() as contadores:
+        triagem, origem = triagem_com_origem(CHAMADO, provider="gemini", ner_disponivel=True)
+
+    assert origem == "fallback"
+    assert "erro_api_429" in caplog.text
+    assert "schema_invalido" not in caplog.text
+    assert contadores.fallback["erro_api_429"] == 1
+
+
+def test_rascunho_gemini_log_api_erro_429(caplog, monkeypatch):
+    """Garante que o log de fallback do rascunho também mostra o motivo da falha de API."""
+    from src.llm import usar_contadores
+
+    caplog.set_level(logging.DEBUG, logger="src.llm")
+    caplog.set_level(logging.DEBUG, logger="")
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy-test-key")
+    monkeypatch.setenv("GEMINI_MODEL", "dummy-model")
+
+    def simula_429(*args, **kwargs):
+        class APIError(Exception):
+            code = 429
+            status_code = 429
+        raise APIError("429 Too Many Requests")
+
+    monkeypatch.setattr(llm, "_chamar_api_gemini", simula_429)
+    with usar_contadores() as contadores:
+        rascunho, origem = rascunho_com_origem(
+            CHAMADO, triar(CHAMADO), provider="gemini", ner_disponivel=True
+        )
+
+    assert origem == "fallback"
+    assert "erro_api_429" in caplog.text
+    assert "schema_invalido" not in caplog.text
+    assert contadores.fallback["erro_api_429"] == 1
 
 
 def test_wrappers_repassam_sinal_ner(monkeypatch):
@@ -724,4 +776,13 @@ def test_resolver_provider_aceita_rotulos_de_interface_pt_e_en(monkeypatch):
         assert resolver_provider(rotulo) == "regras"
     monkeypatch.setenv("GEMINI_API_KEY", "chave_teste")
     assert resolver_provider("Gemini (API)") == "gemini"
+
+
+def test_chamar_api_gemini_raises_when_zero_tentativas(monkeypatch):
+    from src import llm
+
+    monkeypatch.setattr(llm, "MAX_TENTATIVAS_API", 0)
+    monkeypatch.setattr(llm, "MAX_TENTATIVAS_503", 0)
+    with pytest.raises(RuntimeError, match="falha após 0 tentativas"):
+        llm._chamar_api_gemini(None, "modelo_teste", "conteudo_teste", None)
 

@@ -1,5 +1,7 @@
 from datetime import datetime
 
+import pytest
+
 from src import acervo
 from src.redator import _PROMESSA
 
@@ -72,6 +74,17 @@ def test_estimar_pula_fim_de_semana_em_minutos_uteis():
 
     assert e.previsto_de.isoformat() == "2026-11-30T10:20:00-03:00"
     assert e.previsto_ate.isoformat() == "2026-11-30T11:30:00-03:00"
+
+
+def test_estimar_respeita_faixa_de_idx_vazia_e_fora_da_faixa():
+    t = acervo.obter_topico("M01-T01")
+    assert t is not None
+    assert len(t.tabela_tempo) >= 2
+
+    with pytest.raises(ValueError, match="fora da faixa"):
+        acervo.estimar(t, -1)
+    with pytest.raises(ValueError, match="fora da faixa"):
+        acervo.estimar(t, len(t.tabela_tempo))
 
 
 def test_revisao_tem_20_topicos_com_faixas_nao_decrescentes():
